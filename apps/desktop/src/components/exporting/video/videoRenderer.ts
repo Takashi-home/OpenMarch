@@ -26,12 +26,12 @@ import {
     OverlayTimeline,
 } from "./videoOverlay";
 import { type VideoTheme } from "./videoTheme";
+import { DEFAULT_FIELD_FRAMING, type FieldFraming } from "./videoFrameRenderer";
 import {
-    createVideoRenderContext,
-    DEFAULT_FIELD_FRAMING,
-    type FieldFraming,
-    renderVideoFrame,
-} from "./videoFrameRenderer";
+    createFabric2DFrameRenderer,
+    type FrameRenderer,
+} from "./frameRenderer";
+import type { Video3DOptions } from "@/components/field3d/export/Three3DFrameRenderer";
 import type { MarcherAppearancesByPageId } from "../utils/exportAppearances";
 
 const KEYFRAME_INTERVAL_SECONDS = 2;
@@ -58,8 +58,12 @@ export interface VideoExportArgs {
     fps: number;
     /** App light/dark theme for letterbox background and overlays */
     videoTheme: VideoTheme;
-    /** Pan/zoom for the field within the frame */
+    /** Pan/zoom for the field within the frame (2D only) */
     fieldFraming?: FieldFraming;
+    /** "3d" renders from a 3D camera; defaults to the top-down 2D field */
+    renderer?: "2d" | "3d";
+    /** Required when `renderer` is "3d" */
+    video3d?: Video3DOptions;
     /** When set, an info HUD (set, counts, measure, etc.) is drawn on each frame */
     overlay?: {
         options: OverlayOptions;
@@ -178,13 +182,10 @@ export async function exportVideo(
     args: VideoExportArgs,
 ): Promise<VideoExportResult> {
     const {
-        fieldProperties,
         sortedPages,
-        marcherTimelines,
         width,
         height,
         fps,
-        fieldFraming = DEFAULT_FIELD_FRAMING,
         onProgress,
         isCancelled = () => false,
     } = args;
@@ -207,9 +208,7 @@ export async function exportVideo(
     const { sessionId, filePath } = started;
 
     const totalFrames = Math.ceil(durationSeconds * fps);
-    let renderContext: Awaited<
-        ReturnType<typeof createVideoRenderContext>
-    > | null = null;
+    let frameRenderer: FrameRenderer | null = null;
 
     try {
         const { channels: audioSlices, sampleRate } = await prepareAudio(
@@ -218,23 +217,8 @@ export async function exportVideo(
             durationSeconds,
         );
 
-        renderContext = await createVideoRenderContext({
-            fieldProperties,
-            sortedPages,
-            marchers: args.marchers,
-            marcherTimelines,
-            sectionAppearances: args.sectionAppearances,
-            marcherAppearancesByPageId: args.marcherAppearancesByPageId,
-            backgroundImage: args.backgroundImage,
-            gridLines: args.gridLines,
-            halfLines: args.halfLines,
-        });
-
-        const frameCanvas = document.createElement("canvas");
-        frameCanvas.width = width;
-        frameCanvas.height = height;
-        const frameContext = frameCanvas.getContext("2d");
-        if (!frameContext) throw new Error("Could not create export canvas");
+        frameRenderer = await createFrameRenderer(args, durationSeconds);
+        const frameCanvas = frameRenderer.canvas;
 
         const videoSource = new CanvasSource(frameCanvas, {
             codec: encodingTarget.videoCodec,
@@ -276,7 +260,6 @@ export async function exportVideo(
         const overlayTimeline = args.overlay
             ? new OverlayTimeline(sortedPages, args.overlay.measures)
             : null;
-        const brandingLogo = await loadBrandingLogo(args.videoTheme);
 
         let nextAudioSlice = 0;
         const flushAudioUntil = async (seconds: number) => {
@@ -304,23 +287,12 @@ export async function exportVideo(
             const timestampSeconds = frame / fps;
             await flushAudioUntil(timestampSeconds);
 
-            renderVideoFrame({
-                ctx: frameContext,
-                context: renderContext,
-                timeSeconds: timestampSeconds,
-                durationSeconds,
-                width,
-                height,
-                videoTheme: args.videoTheme,
-                fieldFraming,
-                overlayState:
-                    overlayTimeline && args.overlay
-                        ? overlayTimeline.getState(timestampSeconds)
-                        : undefined,
-                overlayOptions: args.overlay?.options,
-                overlayPlacement: args.overlay?.placement,
-                brandingLogo,
-            });
+            frameRenderer.render(
+                timestampSeconds,
+                overlayTimeline
+                    ? overlayTimeline.getState(timestampSeconds)
+                    : undefined,
+            );
 
             await videoSource.add(timestampSeconds, 1 / fps, {
                 keyFrame: frame % (fps * KEYFRAME_INTERVAL_SECONDS) === 0,
@@ -342,6 +314,54 @@ export async function exportVideo(
             .catch(() => undefined);
         throw error;
     } finally {
-        renderContext?.dispose();
+        frameRenderer?.dispose();
     }
+}
+
+/**
+ * Picks the frame renderer. The 3D renderer (and three.js) is loaded only when
+ * a 3D video is exported, keeping it out of the main bundle.
+ */
+async function createFrameRenderer(
+    args: VideoExportArgs,
+    durationSeconds: number,
+): Promise<FrameRenderer> {
+    const common = {
+        width: args.width,
+        height: args.height,
+        fps: args.fps,
+        durationSeconds,
+        videoTheme: args.videoTheme,
+        overlayOptions: args.overlay?.options,
+        overlayPlacement: args.overlay?.placement,
+        brandingLogo: await loadBrandingLogo(args.videoTheme),
+    };
+    const scene = {
+        fieldProperties: args.fieldProperties,
+        sortedPages: args.sortedPages,
+        marchers: args.marchers,
+        marcherTimelines: args.marcherTimelines,
+        marcherAppearancesByPageId: args.marcherAppearancesByPageId,
+        backgroundImage: args.backgroundImage,
+        gridLines: args.gridLines,
+        halfLines: args.halfLines,
+    };
+
+    if (args.renderer === "3d") {
+        if (!args.video3d) throw new Error("3D video options are missing");
+        const { createThree3DFrameRenderer } =
+            await import("@/components/field3d/export/Three3DFrameRenderer");
+        return createThree3DFrameRenderer({
+            ...common,
+            ...scene,
+            options: args.video3d,
+        });
+    }
+
+    return createFabric2DFrameRenderer({
+        ...common,
+        ...scene,
+        sectionAppearances: args.sectionAppearances,
+        fieldFraming: args.fieldFraming ?? DEFAULT_FIELD_FRAMING,
+    });
 }

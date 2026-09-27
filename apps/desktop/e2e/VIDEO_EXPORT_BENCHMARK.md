@@ -167,3 +167,4 @@ output: apps/desktop/e2e/benchmark-results/video-export-after.json
 - Use the same machine and power conditions for before/after comparisons.
 - Run more than once if results are noisy.
 - Keep the benchmark isolated from the full E2E suite so performance runs stay fast and intentional.
+- The video export can render in 2D (default) or 3D (`renderer: "3d"`, shown in the export dialog once the experimental 3D view is enabled). Benchmark each renderer separately and record which one ran; 3D frames cost more (WebGL rendering plus compositing the overlay), especially with shadows on or on machines without a GPU.

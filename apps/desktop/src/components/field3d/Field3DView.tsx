@@ -35,13 +35,12 @@ import {
     MARCHER_SHAPES_3D,
 } from "./scene/marcherInstances";
 import { buildPathSegments } from "./scene/pathSegments";
+import { SKY_COLOR } from "./scene/sceneStyle";
 import {
     createHeadingTracker,
     createLivePositionStore,
     MarcherPose,
 } from "./playback/livePlayback";
-
-const SKY_COLOR = "#a9c8e8";
 
 /**
  * Read-only 3D view of the selected page. While playing, marchers follow the

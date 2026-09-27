@@ -77,6 +77,16 @@ import {
     OverlayTimeline,
 } from "./video/videoOverlay";
 import OverlayPreview from "./video/OverlayPreview";
+import { loadBrandingLogo } from "./video/videoOverlay";
+import Video3DOptionsPanel, {
+    defaultVideo3DOptions,
+} from "@/components/field3d/export/Video3DOptionsPanel";
+import Video3DPreview, {
+    Video3DPreviewArgs,
+} from "@/components/field3d/export/Video3DPreview";
+import type { Video3DOptions } from "@/components/field3d/export/Three3DFrameRenderer";
+import { isWebGLAvailable } from "@/components/field3d/hooks/useWebGLSupport";
+import { compare as compareMarchers } from "@/global/classes/Marcher";
 import type { VideoTheme } from "./video/videoTheme";
 import {
     clampFieldFraming,
@@ -1334,6 +1344,19 @@ function VideoExport() {
     const [fieldFraming, setFieldFraming] = useState<FieldFraming>(
         DEFAULT_FIELD_FRAMING,
     );
+    // The 3D renderer is offered once the experimental 3D view is enabled
+    const can3d = useMemo(
+        () => uiSettings.experimental3dView && isWebGLAvailable(),
+        [uiSettings.experimental3dView],
+    );
+    const [videoRenderer, setVideoRenderer] = useState<"2d" | "3d">("2d");
+    const [video3dOptions, setVideo3dOptions] = useState<Video3DOptions>(() =>
+        defaultVideo3DOptions(uiSettings.view3d),
+    );
+    const use3d = can3d && videoRenderer === "3d";
+    const [brandingLogo, setBrandingLogo] = useState<HTMLImageElement | null>(
+        null,
+    );
     const [fieldRenderContext, setFieldRenderContext] =
         useState<VideoRenderContext | null>(null);
     const [backgroundImage, setBackgroundImage] = useState<
@@ -1487,6 +1510,62 @@ function VideoExport() {
         };
     }, [pages, measures]);
 
+    useEffect(() => {
+        let cancelled = false;
+        void loadBrandingLogo(videoTheme).then((logo) => {
+            if (!cancelled) setBrandingLogo(logo);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [videoTheme]);
+
+    const sortedMarchers = useMemo(
+        () => [...(marchers ?? [])].sort(compareMarchers),
+        [marchers],
+    );
+
+    const video3dPreviewArgs = useMemo<Video3DPreviewArgs | null>(() => {
+        if (!use3d || previewLoading || !fieldProperties || !marchers)
+            return null;
+        return {
+            fieldProperties,
+            sortedPages: pages,
+            marchers,
+            marcherTimelines,
+            marcherAppearancesByPageId,
+            backgroundImage,
+            gridLines: uiSettings.gridLines,
+            halfLines: uiSettings.halfLines,
+            durationSeconds: Math.max(durationSeconds, 0.001),
+            videoTheme,
+            overlayOptions: overlayEnabled ? overlayOptions : undefined,
+            overlayPlacement: overlayEnabled ? placement : undefined,
+            overlayState: overlayEnabled ? previewState : undefined,
+            brandingLogo,
+            options: video3dOptions,
+        };
+    }, [
+        use3d,
+        previewLoading,
+        fieldProperties,
+        marchers,
+        pages,
+        marcherTimelines,
+        marcherAppearancesByPageId,
+        backgroundImage,
+        uiSettings.gridLines,
+        uiSettings.halfLines,
+        durationSeconds,
+        videoTheme,
+        overlayEnabled,
+        overlayOptions,
+        placement,
+        previewState,
+        brandingLogo,
+        video3dOptions,
+    ]);
+
     const canExport = !!(
         fieldProperties &&
         pages.length > 1 &&
@@ -1544,6 +1623,8 @@ function VideoExport() {
                 fps: frameRate,
                 videoTheme,
                 fieldFraming,
+                renderer: use3d ? "3d" : "2d",
+                video3d: use3d ? video3dOptions : undefined,
                 overlay: overlayEnabled
                     ? { measures, options: overlayOptions, placement }
                     : undefined,
@@ -1611,6 +1692,8 @@ function VideoExport() {
         overlayOptions,
         placement,
         fieldFraming,
+        use3d,
+        video3dOptions,
     ]);
 
     return (
@@ -1699,107 +1782,168 @@ function VideoExport() {
                         </ToggleGroup.Item>
                     </ToggleGroup.Root>
                 </Form.Field>
+
+                {can3d && (
+                    <Form.Field
+                        name="videoRenderer"
+                        className="col-span-2 flex w-full items-center justify-between gap-12"
+                    >
+                        <Form.Label className="text-body">
+                            <T keyName="exportCoordinates.video3d.view" />
+                        </Form.Label>
+                        <ToggleGroup.Root
+                            type="single"
+                            value={videoRenderer}
+                            onValueChange={(value) => {
+                                if (value)
+                                    setVideoRenderer(value as "2d" | "3d");
+                            }}
+                            className="flex h-fit w-fit gap-8"
+                        >
+                            <ToggleGroup.Item
+                                value="2d"
+                                className="text-text bg-fg-2 text-body border-stroke data-[state=on]:border-accent flex items-center gap-6 rounded-full border px-12 py-8 outline-hidden duration-150 ease-out focus-visible:-translate-y-4"
+                            >
+                                <T keyName="toolbar.view.viewMode.2d" />
+                            </ToggleGroup.Item>
+                            <ToggleGroup.Item
+                                value="3d"
+                                className="text-text bg-fg-2 text-body border-stroke data-[state=on]:border-accent flex items-center gap-6 rounded-full border px-12 py-8 outline-hidden duration-150 ease-out focus-visible:-translate-y-4"
+                            >
+                                <T keyName="toolbar.view.viewMode.3d" />
+                            </ToggleGroup.Item>
+                        </ToggleGroup.Root>
+                    </Form.Field>
+                )}
             </Form.Root>
+
+            {use3d && (
+                <Video3DOptionsPanel
+                    value={video3dOptions}
+                    onChange={setVideo3dOptions}
+                    marchers={sortedMarchers}
+                />
+            )}
 
             {/* Overlay options */}
             <div className="flex flex-col gap-8">
                 <h5 className="text-h5">
                     <T keyName="exportCoordinates.videoOverlay" />
                 </h5>
-                <OverlayPreview
-                    state={previewState}
-                    options={overlayOptions}
-                    placement={placement}
-                    onPlacementChange={setPlacement}
-                    videoTheme={videoTheme}
-                    fieldRenderContext={fieldRenderContext}
-                    fieldFraming={fieldFraming}
-                    onFieldFramingChange={setFieldFraming}
-                    previewTimeSeconds={0}
-                    durationSeconds={Math.max(durationSeconds, 0.001)}
-                    isLoading={previewLoading}
-                    loadingLabel={t("exportCoordinates.videoPreviewLoading")}
-                />
-                <div className="flex flex-col gap-12">
-                    <h6 className="text-sub text-text/80">
-                        <T keyName="exportCoordinates.videoFieldFraming" />
-                    </h6>
-                    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-16 gap-y-12">
-                        <span className="text-body whitespace-nowrap">
-                            <T keyName="exportCoordinates.videoFieldScale" />
-                        </span>
-                        <Slider
-                            value={[fieldFraming.scale]}
-                            min={MIN_FIELD_SCALE}
-                            max={MAX_FIELD_SCALE}
-                            step={0.05}
-                            onValueChange={([scale]) =>
-                                setFieldFraming(
-                                    clampFieldFraming({
-                                        ...fieldFraming,
-                                        scale,
-                                    }),
-                                )
-                            }
-                            className="relative flex h-5 w-full touch-none items-center select-none"
+                {use3d ? (
+                    <>
+                        <Video3DPreview
+                            args={video3dPreviewArgs}
+                            loadingLabel={t(
+                                "exportCoordinates.videoPreviewLoading",
+                            )}
                         />
-                        <span className="text-sub text-text/60 w-[3rem] text-right tabular-nums">
-                            {fieldFraming.scale.toFixed(2)}×
-                        </span>
+                        <p className="text-sub text-text/60">
+                            <T keyName="exportCoordinates.video3d.overlayHint" />
+                        </p>
+                    </>
+                ) : (
+                    <>
+                        <OverlayPreview
+                            state={previewState}
+                            options={overlayOptions}
+                            placement={placement}
+                            onPlacementChange={setPlacement}
+                            videoTheme={videoTheme}
+                            fieldRenderContext={fieldRenderContext}
+                            fieldFraming={fieldFraming}
+                            onFieldFramingChange={setFieldFraming}
+                            previewTimeSeconds={0}
+                            durationSeconds={Math.max(durationSeconds, 0.001)}
+                            isLoading={previewLoading}
+                            loadingLabel={t(
+                                "exportCoordinates.videoPreviewLoading",
+                            )}
+                        />
+                        <div className="flex flex-col gap-12">
+                            <h6 className="text-sub text-text/80">
+                                <T keyName="exportCoordinates.videoFieldFraming" />
+                            </h6>
+                            <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-16 gap-y-12">
+                                <span className="text-body whitespace-nowrap">
+                                    <T keyName="exportCoordinates.videoFieldScale" />
+                                </span>
+                                <Slider
+                                    value={[fieldFraming.scale]}
+                                    min={MIN_FIELD_SCALE}
+                                    max={MAX_FIELD_SCALE}
+                                    step={0.05}
+                                    onValueChange={([scale]) =>
+                                        setFieldFraming(
+                                            clampFieldFraming({
+                                                ...fieldFraming,
+                                                scale,
+                                            }),
+                                        )
+                                    }
+                                    className="relative flex h-5 w-full touch-none items-center select-none"
+                                />
+                                <span className="text-sub text-text/60 w-[3rem] text-right tabular-nums">
+                                    {fieldFraming.scale.toFixed(2)}×
+                                </span>
 
-                        <span className="text-body whitespace-nowrap">
-                            <T keyName="exportCoordinates.videoFieldOffsetX" />
-                        </span>
-                        <Slider
-                            value={[fieldFraming.offsetX]}
-                            min={MIN_FIELD_OFFSET}
-                            max={MAX_FIELD_OFFSET}
-                            step={0.01}
-                            onValueChange={([offsetX]) =>
-                                setFieldFraming(
-                                    clampFieldFraming({
-                                        ...fieldFraming,
-                                        offsetX,
-                                    }),
-                                )
-                            }
-                            className="relative flex h-5 w-full touch-none items-center select-none"
-                        />
-                        <span className="text-sub text-text/60 w-[3rem] text-right tabular-nums">
-                            {fieldFraming.offsetX.toFixed(2)}
-                        </span>
+                                <span className="text-body whitespace-nowrap">
+                                    <T keyName="exportCoordinates.videoFieldOffsetX" />
+                                </span>
+                                <Slider
+                                    value={[fieldFraming.offsetX]}
+                                    min={MIN_FIELD_OFFSET}
+                                    max={MAX_FIELD_OFFSET}
+                                    step={0.01}
+                                    onValueChange={([offsetX]) =>
+                                        setFieldFraming(
+                                            clampFieldFraming({
+                                                ...fieldFraming,
+                                                offsetX,
+                                            }),
+                                        )
+                                    }
+                                    className="relative flex h-5 w-full touch-none items-center select-none"
+                                />
+                                <span className="text-sub text-text/60 w-[3rem] text-right tabular-nums">
+                                    {fieldFraming.offsetX.toFixed(2)}
+                                </span>
 
-                        <span className="text-body whitespace-nowrap">
-                            <T keyName="exportCoordinates.videoFieldOffsetY" />
-                        </span>
-                        <Slider
-                            value={[fieldFraming.offsetY]}
-                            min={MIN_FIELD_OFFSET}
-                            max={MAX_FIELD_OFFSET}
-                            step={0.01}
-                            onValueChange={([offsetY]) =>
-                                setFieldFraming(
-                                    clampFieldFraming({
-                                        ...fieldFraming,
-                                        offsetY,
-                                    }),
-                                )
-                            }
-                            className="relative flex h-5 w-full touch-none items-center select-none"
-                        />
-                        <span className="text-sub text-text/60 w-[3rem] text-right tabular-nums">
-                            {fieldFraming.offsetY.toFixed(2)}
-                        </span>
-                    </div>
-                    <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-fit"
-                        onClick={() => setFieldFraming(DEFAULT_FIELD_FRAMING)}
-                    >
-                        <T keyName="exportCoordinates.videoFieldResetFraming" />
-                    </Button>
-                </div>
+                                <span className="text-body whitespace-nowrap">
+                                    <T keyName="exportCoordinates.videoFieldOffsetY" />
+                                </span>
+                                <Slider
+                                    value={[fieldFraming.offsetY]}
+                                    min={MIN_FIELD_OFFSET}
+                                    max={MAX_FIELD_OFFSET}
+                                    step={0.01}
+                                    onValueChange={([offsetY]) =>
+                                        setFieldFraming(
+                                            clampFieldFraming({
+                                                ...fieldFraming,
+                                                offsetY,
+                                            }),
+                                        )
+                                    }
+                                    className="relative flex h-5 w-full touch-none items-center select-none"
+                                />
+                                <span className="text-sub text-text/60 w-[3rem] text-right tabular-nums">
+                                    {fieldFraming.offsetY.toFixed(2)}
+                                </span>
+                            </div>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                className="w-fit"
+                                onClick={() =>
+                                    setFieldFraming(DEFAULT_FIELD_FRAMING)
+                                }
+                            >
+                                <T keyName="exportCoordinates.videoFieldResetFraming" />
+                            </Button>
+                        </div>
+                    </>
+                )}
                 {(overlayEnabled || !previewLoading) && (
                     <p className="text-sub text-text/60">
                         <T keyName="exportCoordinates.videoOverlayPreviewHint" />

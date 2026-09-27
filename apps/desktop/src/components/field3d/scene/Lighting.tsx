@@ -1,4 +1,11 @@
 import type { FieldWorldBounds } from "../camera/defaultCamera";
+import {
+    HEMISPHERE_LIGHT,
+    SHADOW_BIAS,
+    SHADOW_MAP_SIZE,
+    SUN_INTENSITY,
+    sunLayout,
+} from "./sceneStyle";
 
 /** Soft sky light plus a sun from behind the audience, optionally casting shadows. */
 export default function Lighting({
@@ -8,28 +15,28 @@ export default function Lighting({
     bounds: FieldWorldBounds;
     shadows?: boolean;
 }) {
-    const sunDistance = Math.max(bounds.width, bounds.depth);
-    // The shadow camera covers the field plus the stands in front of it
-    const shadowHalfSize = sunDistance * 0.75;
+    const sun = sunLayout(bounds);
     return (
         <>
-            <hemisphereLight args={["#ffffff", "#6b7b5a", 1.6]} />
-            <directionalLight
-                position={[
-                    bounds.centerX - sunDistance * 0.3,
-                    sunDistance * 0.8,
-                    bounds.maxZ + sunDistance * 0.5,
+            <hemisphereLight
+                args={[
+                    HEMISPHERE_LIGHT.skyColor,
+                    HEMISPHERE_LIGHT.groundColor,
+                    HEMISPHERE_LIGHT.intensity,
                 ]}
-                intensity={1.8}
+            />
+            <directionalLight
+                position={sun.position}
+                intensity={SUN_INTENSITY}
                 castShadow={shadows}
-                shadow-mapSize={[2048, 2048]}
-                shadow-bias={-0.0005}
-                shadow-camera-left={-shadowHalfSize}
-                shadow-camera-right={shadowHalfSize}
-                shadow-camera-top={shadowHalfSize}
-                shadow-camera-bottom={-shadowHalfSize}
+                shadow-mapSize={[SHADOW_MAP_SIZE, SHADOW_MAP_SIZE]}
+                shadow-bias={SHADOW_BIAS}
+                shadow-camera-left={-sun.shadowHalfSize}
+                shadow-camera-right={sun.shadowHalfSize}
+                shadow-camera-top={sun.shadowHalfSize}
+                shadow-camera-bottom={-sun.shadowHalfSize}
                 shadow-camera-near={1}
-                shadow-camera-far={sunDistance * 3}
+                shadow-camera-far={sun.shadowFar}
             />
         </>
     );

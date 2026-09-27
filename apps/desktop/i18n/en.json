@@ -338,6 +338,12 @@
         "videoOverlaySetLabel": "Set",
         "videoOverlayTempo": "Tempo",
         "videoPreviewLoading": "Loading preview…",
+        "video3d.followMarcher": "Marcher to follow",
+        "video3d.labels": "Drill number labels",
+        "video3d.overlayHint": "The info overlay is drawn over the 3D video. Switch to 2D to move or resize it.",
+        "video3d.shadows": "Shadows",
+        "video3d.stadium": "Stands",
+        "video3d.view": "View",
         "videoRendering": "Rendering video... This may take several minutes.",
         "videoResolution": "Resolution"
     },
