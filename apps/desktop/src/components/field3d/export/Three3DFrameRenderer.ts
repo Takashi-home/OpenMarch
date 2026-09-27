@@ -61,6 +61,12 @@ import {
     sunLayout,
     SURROUNDING_GROUND_MARGIN,
 } from "../scene/sceneStyle";
+import {
+    accessoryMarchers,
+    createMarcherAccessories,
+} from "../scene/marcherAccessories";
+import type { MarcherInstancesByShape } from "../scene/marcherInstances";
+import type { MarcherModel3D } from "@/stores/UiSettingsStore";
 import { createExportAnimation, Export3DCamera } from "./exportAnimation";
 
 /** Options for rendering the show in 3D. */
@@ -71,6 +77,10 @@ export interface Video3DOptions {
     showLabels: boolean;
     /** Marcher body size multiplier */
     marcherScale: number;
+    /** Marcher body style */
+    marcherModel: MarcherModel3D;
+    /** Flags, rifles, drums and keyboards by section */
+    showEquipment: boolean;
 }
 
 export interface Three3DFrameRendererArgs extends FrameRendererCommonArgs {
@@ -212,7 +222,9 @@ export async function createThree3DFrameRenderer(
     const capacity = Math.max(args.marchers.length, 1);
     const meshes = new Map<MarcherShape3D, InstancedMesh>();
     for (const shape of MARCHER_SHAPES_3D) {
-        const geometry: BufferGeometry = track(createMarcherGeometry(shape));
+        const geometry: BufferGeometry = track(
+            createMarcherGeometry(shape, options.marcherModel),
+        );
         const mesh = new InstancedMesh(
             geometry,
             track(new MeshStandardMaterial({ roughness: MARCHER_ROUGHNESS })),
@@ -224,6 +236,24 @@ export async function createThree3DFrameRenderer(
         scene.add(mesh);
         meshes.set(shape, mesh);
     }
+
+    // Walking legs and section equipment
+    const accessories =
+        options.marcherModel === "figure" || options.showEquipment
+            ? track(
+                  createMarcherAccessories({
+                      capacity,
+                      legs: options.marcherModel === "figure",
+                      equipment: options.showEquipment,
+                      castShadow: options.shadows,
+                  }),
+              )
+            : null;
+    if (accessories) scene.add(accessories.object);
+    const sectionByMarcherId = new Map(
+        args.marchers.map((marcher) => [marcher.id, marcher.section]),
+    );
+    let accessoriesFor: MarcherInstancesByShape | null = null;
 
     // Labels
     const labelColor = rgbCss(fieldProperties.theme.defaultMarcher.label);
@@ -258,6 +288,30 @@ export async function createThree3DFrameRenderer(
     const scratchColor = new Color();
     const labelPosition = new Vector3();
     const frameSeconds = 1 / args.fps;
+
+    /** Moves labels above their marchers; hides far and unlabeled ones. */
+    const placeLabels = (frame: ReturnType<typeof animation.frameAt>) => {
+        if (labels.size === 0) return;
+        const labelled = new Set(
+            MARCHER_SHAPES_3D.flatMap((shape) =>
+                frame.instancesByShape[shape]
+                    .filter((instance) => instance.labelVisible)
+                    .map((instance) => instance.marcherId),
+            ),
+        );
+        for (const [marcherId, sprite] of labels) {
+            const pose = frame.poses.get(marcherId);
+            if (!pose || !labelled.has(marcherId)) {
+                sprite.visible = false;
+                continue;
+            }
+            labelPosition.set(pose.x, labelHeight, pose.z);
+            sprite.position.copy(labelPosition);
+            sprite.visible = isLabelVisibleAtDistance(
+                camera.position.distanceTo(labelPosition),
+            );
+        }
+    };
 
     return {
         canvas,
@@ -296,6 +350,24 @@ export async function createThree3DFrameRenderer(
                 if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
             }
 
+            if (accessories) {
+                // The shown marchers and their colors change with the page
+                if (accessoriesFor !== frame.instancesByShape) {
+                    accessoriesFor = frame.instancesByShape;
+                    accessories.setMarchers(
+                        accessoryMarchers(
+                            frame.instancesByShape,
+                            sectionByMarcherId,
+                        ),
+                    );
+                }
+                accessories.update(
+                    frame.poses,
+                    frameSeconds,
+                    options.marcherScale,
+                );
+            }
+
             const { position, target, fov } = frame.camera;
             camera.position.set(...position);
             camera.lookAt(...target);
@@ -304,27 +376,7 @@ export async function createThree3DFrameRenderer(
                 camera.updateProjectionMatrix();
             }
 
-            if (labels.size > 0) {
-                const labelled = new Set(
-                    MARCHER_SHAPES_3D.flatMap((shape) =>
-                        frame.instancesByShape[shape]
-                            .filter((instance) => instance.labelVisible)
-                            .map((instance) => instance.marcherId),
-                    ),
-                );
-                for (const [marcherId, sprite] of labels) {
-                    const pose = frame.poses.get(marcherId);
-                    if (!pose || !labelled.has(marcherId)) {
-                        sprite.visible = false;
-                        continue;
-                    }
-                    labelPosition.set(pose.x, labelHeight, pose.z);
-                    sprite.position.copy(labelPosition);
-                    sprite.visible = isLabelVisibleAtDistance(
-                        camera.position.distanceTo(labelPosition),
-                    );
-                }
-            }
+            placeLabels(frame);
 
             renderer.render(scene, camera);
 

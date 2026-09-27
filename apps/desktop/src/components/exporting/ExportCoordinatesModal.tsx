@@ -81,6 +81,7 @@ import { loadBrandingLogo } from "./video/videoOverlay";
 import Video3DOptionsPanel, {
     defaultVideo3DOptions,
 } from "@/components/field3d/export/Video3DOptionsPanel";
+import { useShowCameraKeyframes } from "@/components/field3d/hooks/useShowKey";
 import Video3DPreview, {
     Video3DPreviewArgs,
 } from "@/components/field3d/export/Video3DPreview";
@@ -1350,8 +1351,9 @@ function VideoExport() {
         [uiSettings.experimental3dView],
     );
     const [videoRenderer, setVideoRenderer] = useState<"2d" | "3d">("2d");
+    const { keyframes: cameraKeyframes } = useShowCameraKeyframes();
     const [video3dOptions, setVideo3dOptions] = useState<Video3DOptions>(() =>
-        defaultVideo3DOptions(uiSettings.view3d),
+        defaultVideo3DOptions(uiSettings.view3d, cameraKeyframes),
     );
     const use3d = can3d && videoRenderer === "3d";
     const [brandingLogo, setBrandingLogo] = useState<HTMLImageElement | null>(
@@ -1822,6 +1824,7 @@ function VideoExport() {
                     value={video3dOptions}
                     onChange={setVideo3dOptions}
                     marchers={sortedMarchers}
+                    keyframes={cameraKeyframes}
                 />
             )}
 

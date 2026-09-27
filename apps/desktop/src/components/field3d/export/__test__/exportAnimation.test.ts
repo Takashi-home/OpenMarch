@@ -124,6 +124,24 @@ describe("createExportAnimation", () => {
         expect(frame.camera.target[2]).toBeCloseTo(desired.target[2], 0);
     });
 
+    it("flies through camera keyframes, holding before the first", () => {
+        const pose = (x: number) => ({
+            position: [x, 10, 30] as [number, number, number],
+            target: [x, 0, 0] as [number, number, number],
+            fov: 50,
+        });
+        const animation = create({
+            kind: "keyframes",
+            keyframes: [
+                { id: "a", timeMs: 1000, pose: pose(0) },
+                { id: "b", timeMs: 3000, pose: pose(20) },
+            ],
+        });
+        expect(run(animation, 500).camera).toEqual(pose(0));
+        expect(run(animation, 2000).camera.position[0]).toBeCloseTo(10, 0);
+        expect(run(animation, 5000).camera).toEqual(pose(20));
+    });
+
     it("produces the same frames for the same input", () => {
         const first = create({ kind: "follow", marcherId: 1 });
         const second = create({ kind: "follow", marcherId: 1 });

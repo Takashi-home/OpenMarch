@@ -8,6 +8,7 @@ import {
     PAGE_TRANSITION_SECONDS,
 } from "../../playback/livePlayback";
 import MarchersInstanced from "../MarchersInstanced";
+import { createDragPreviewStore } from "../../edit/dragPreview";
 import { MarcherInstancesByShape } from "../marcherInstances";
 
 const instance = (marcherId: number) => ({
@@ -117,6 +118,38 @@ describe("MarchersInstanced", () => {
         await renderer.advanceFrames(4, PAGE_TRANSITION_SECONDS / 2);
         expect(positionOf(1).x).toBeCloseTo(2);
         expect(positionOf(1).z).toBeCloseTo(-2);
+        await renderer.unmount();
+    });
+
+    it("draws dragged marchers at the drag preview and tags meshes for picking", async () => {
+        const dragPreview = createDragPreviewStore();
+        const displayedPoses = new Map();
+        const renderer = await ReactThreeTestRenderer.create(
+            <MarchersInstanced
+                instancesByShape={instancesByShape}
+                capacity={5}
+                dragPreview={dragPreview}
+                displayedPoses={displayedPoses}
+            />,
+        );
+        const circle = renderer.scene.findAll(
+            (node) => node.instance instanceof InstancedMesh,
+        )[0].instance as InstancedMesh;
+        expect(circle.userData.marcherIds).toEqual([1, 2, 3]);
+
+        dragPreview.set(new Map([[2, { x: 7, z: 8 }]]));
+        await renderer.advanceFrames(1, 1 / 60);
+        const matrix = new Matrix4();
+        circle.getMatrixAt(1, matrix);
+        const dragged = new Vector3().setFromMatrixPosition(matrix);
+        expect([dragged.x, dragged.z]).toEqual([7, 8]);
+        expect(displayedPoses.get(2)).toMatchObject({ x: 7, z: 8 });
+
+        // Clearing the preview returns marchers to their page positions
+        dragPreview.clear();
+        await renderer.advanceFrames(1, 1 / 60);
+        circle.getMatrixAt(1, matrix);
+        expect(new Vector3().setFromMatrixPosition(matrix).x).toBeCloseTo(2);
         await renderer.unmount();
     });
 

@@ -10,7 +10,7 @@ import {
     SelectItem,
     SelectTriggerButton,
 } from "@openmarch/ui";
-import { useUiSettingsStore } from "@/stores/UiSettingsStore";
+import { MarcherModel3D, useUiSettingsStore } from "@/stores/UiSettingsStore";
 
 const languages = [
     { code: "en", name: "English" },
@@ -22,6 +22,7 @@ const languages = [
 
 /** 3D view marcher size options (1 = about a person's size) */
 const MARCHER_SCALES = [0.5, 0.75, 1, 1.5, 2];
+const MARCHER_MODELS: readonly MarcherModel3D[] = ["figure", "simple"];
 
 // eslint-disable-next-line max-lines-per-function
 export default function GeneralSettings() {
@@ -177,6 +178,39 @@ export default function GeneralSettings() {
                                         value={String(scale)}
                                     >
                                         {`${scale * 100}%`}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex h-[2.5rem] items-center justify-between px-8">
+                        <p className="text-body text-text-subtitle">
+                            <T keyName="settings.general.view3d.marcherModel" />
+                        </p>
+                        <Select
+                            value={uiSettings.view3d.marcherModel}
+                            onValueChange={(value) =>
+                                setUiSettings({
+                                    ...uiSettings,
+                                    view3d: {
+                                        ...uiSettings.view3d,
+                                        marcherModel: value as MarcherModel3D,
+                                    },
+                                })
+                            }
+                        >
+                            <SelectTriggerButton
+                                label={tolgee.t(
+                                    `settings.general.view3d.marcherModel.${uiSettings.view3d.marcherModel}`,
+                                )}
+                                className="min-w-[120px]"
+                            />
+                            <SelectContent>
+                                {MARCHER_MODELS.map((model) => (
+                                    <SelectItem key={model} value={model}>
+                                        {tolgee.t(
+                                            `settings.general.view3d.marcherModel.${model}`,
+                                        )}
                                     </SelectItem>
                                 ))}
                             </SelectContent>
