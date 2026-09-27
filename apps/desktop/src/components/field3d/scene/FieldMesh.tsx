@@ -76,7 +76,7 @@ export default function FieldMesh({
                 <planeGeometry args={[bounds.width, bounds.depth]} />
                 {/* A new material per texture, so the shader is rebuilt with the map */}
                 <meshStandardMaterial
-                    key={texture?.uuid ?? "untextured"}
+                    key={texture?.uuid ?? "no-texture"}
                     map={texture}
                     color={
                         texture
