@@ -42,6 +42,7 @@ words:
   - dorico
   - dorny
   - dpkg
+  - drei
   - drumline
   - dukc
   - Dumouchelle
@@ -56,6 +57,7 @@ words:
   - fieldots
   - flac
   - forwardslash
+  - frameloop
   - français
   - frontfield
   - frontmatter
@@ -66,7 +68,9 @@ words:
   - idioma
   - importmap
   - Invalidators
+  - keyregistry
   - launchpage
+  - lerp
   - lightridge
   - localappdata
   - Loudoun
@@ -169,6 +173,9 @@ words:
   - waivable
   - WASD
   - wavesurfer
+  - webgl
+  - webglcontextlost
+  - webglcontextrestored
   - winget
   - Winterguard
   - Woodgrove
