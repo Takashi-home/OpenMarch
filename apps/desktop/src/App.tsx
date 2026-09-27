@@ -15,6 +15,8 @@ import { TooltipProvider } from "@radix-ui/react-tooltip";
 import TitleBar from "@/components/titlebar/TitleBar";
 import { useUiSettingsStore } from "./stores/UiSettingsStore";
 import CanvasZoomControls from "@/components/canvas/CanvasZoomControls";
+import Field3DViewContainer from "@/components/field3d/Field3DViewContainer";
+import { getEffectiveViewMode } from "@/components/field3d/viewMode";
 import OpenMarchCanvas from "@/global/classes/canvasObjects/OpenMarchCanvas";
 import Plugin from "./global/classes/Plugin";
 import Sidebar from "@/components/sidebar/Sidebar";
@@ -66,10 +68,14 @@ function App() {
     );
     const {
         fetchUiSettings,
-        uiSettings: { focussedComponent },
+        uiSettings: { focussedComponent, experimental3dView, viewMode },
     } = useUiSettingsStore();
     const pluginsLoadedRef = useRef(false);
     const { isFullscreen } = useFullscreenStore();
+    const effectiveViewMode = getEffectiveViewMode(
+        { experimental3dView, viewMode },
+        isFullscreen,
+    );
 
     // Check if running in codegen mode
     const isCodegen = window.electron.isCodegen;
@@ -275,14 +281,36 @@ function App() {
                                                                 <SidebarModal />
                                                             </>
                                                         )}
-                                                        <Canvas
-                                                            onCanvasReady={
-                                                                setAppCanvas
-                                                            }
-                                                        />
-                                                        <CanvasZoomControls
-                                                            canvas={appCanvas}
-                                                        />
+                                                        <div className="relative flex h-full min-h-0 min-w-0 flex-1 gap-8">
+                                                            {/* The 2D canvas stays mounted in 3D mode so playback and page updates keep running */}
+                                                            <div
+                                                                className={clsx(
+                                                                    "relative h-full min-w-0 flex-1",
+                                                                    {
+                                                                        "invisible absolute inset-0":
+                                                                            effectiveViewMode ===
+                                                                            "3d",
+                                                                    },
+                                                                )}
+                                                            >
+                                                                <Canvas
+                                                                    onCanvasReady={
+                                                                        setAppCanvas
+                                                                    }
+                                                                />
+                                                                <CanvasZoomControls
+                                                                    canvas={
+                                                                        appCanvas
+                                                                    }
+                                                                />
+                                                            </div>
+                                                            {effectiveViewMode !==
+                                                                "2d" && (
+                                                                <div className="relative h-full min-w-0 flex-1">
+                                                                    <Field3DViewContainer />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                     <TimelineContainer />
                                                 </div>

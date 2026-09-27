@@ -129,6 +129,21 @@ export default function GeneralSettings() {
                     }
                 />
             </div>
+
+            <div className="flex h-[2.5rem] items-center justify-between px-8">
+                <p className="text-body text-text-subtitle">
+                    <T keyName="settings.general.experimental3dView" />
+                </p>
+                <Switch
+                    checked={uiSettings.experimental3dView}
+                    onCheckedChange={(checked) =>
+                        setUiSettings({
+                            ...uiSettings,
+                            experimental3dView: checked,
+                        })
+                    }
+                />
+            </div>
         </div>
     );
 }

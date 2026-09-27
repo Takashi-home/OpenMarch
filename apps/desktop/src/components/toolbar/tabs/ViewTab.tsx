@@ -1,13 +1,68 @@
 import { useUiSettingsStore } from "@/stores/UiSettingsStore";
 import ToolbarSection from "@/components/toolbar/ToolbarSection";
-import { EyeIcon, EyeSlashIcon } from "@phosphor-icons/react";
+import {
+    ColumnsIcon,
+    CubeIcon,
+    EyeIcon,
+    EyeSlashIcon,
+    SquareIcon,
+} from "@phosphor-icons/react";
 import { T, useTolgee } from "@tolgee/react";
+import clsx from "clsx";
+import type { ViewMode } from "@/stores/UiSettingsStore";
 
 export default function ViewTab() {
     return (
         <div className="flex w-full flex-wrap gap-8">
+            <ViewModeToolbar />
             <UiSettingsToolbar />
         </div>
+    );
+}
+
+const viewModeOptions: {
+    mode: ViewMode;
+    keyName: string;
+    Icon: typeof SquareIcon;
+}[] = [
+    { mode: "2d", keyName: "toolbar.view.viewMode.2d", Icon: SquareIcon },
+    { mode: "3d", keyName: "toolbar.view.viewMode.3d", Icon: CubeIcon },
+    {
+        mode: "split",
+        keyName: "toolbar.view.viewMode.split",
+        Icon: ColumnsIcon,
+    },
+];
+
+/** 2D / 3D / split switch, shown once the experimental 3D view is enabled. */
+function ViewModeToolbar() {
+    const { t } = useTolgee();
+    const { uiSettings, setUiSettings } = useUiSettingsStore();
+
+    if (!uiSettings.experimental3dView) return null;
+
+    return (
+        <ToolbarSection aria-label={t("toolbar.view.viewMode")}>
+            {viewModeOptions.map(({ mode, keyName, Icon }) => {
+                const active = uiSettings.viewMode === mode;
+                return (
+                    <button
+                        key={mode}
+                        aria-pressed={active}
+                        onClick={() =>
+                            setUiSettings({ ...uiSettings, viewMode: mode })
+                        }
+                        className={clsx(
+                            "hover:text-accent flex items-center gap-8 outline-hidden duration-150 ease-out focus-visible:-translate-y-4 disabled:opacity-50",
+                            { "text-accent": active },
+                        )}
+                    >
+                        <Icon size={24} weight={active ? "fill" : "regular"} />
+                        <T keyName={keyName} />
+                    </button>
+                );
+            })}
+        </ToolbarSection>
     );
 }
 
