@@ -3,7 +3,10 @@ import { create } from "zustand";
 export type FocusableComponents = "canvas" | "timeline";
 /** Which field views are shown in the workspace */
 export type ViewMode = "2d" | "3d" | "split";
-/** Camera positions in the 3D view; "free" is wherever the user moved it */
+/**
+ * Camera positions in the 3D view; "free" is wherever the user moved it and
+ * "keyframes" follows the show's camera keyframes
+ */
 export type CameraPresetId =
     | "press-box"
     | "stands-low"
@@ -11,7 +14,10 @@ export type CameraPresetId =
     | "top-down"
     | "field-level"
     | "follow"
+    | "keyframes"
     | "free";
+/** How marchers are drawn in 3D: a simple solid, or a figure that walks */
+export type MarcherModel3D = "simple" | "figure";
 
 /** Options for the experimental 3D view */
 export interface View3DSettings {
@@ -26,6 +32,12 @@ export interface View3DSettings {
     marcherScale: number;
     /** Glide to new positions when the page changes while paused */
     smoothPageTransition: boolean;
+    /** Marcher body style */
+    marcherModel: MarcherModel3D;
+    /** Flags, rifles, drums and keyboards by section */
+    showEquipment: boolean;
+    /** Whether the camera keyframe panel is open */
+    keyframePanelOpen: boolean;
 }
 
 export const defaultView3DSettings: View3DSettings = {
@@ -35,6 +47,9 @@ export const defaultView3DSettings: View3DSettings = {
     shadows: false,
     marcherScale: 1,
     smoothPageTransition: true,
+    marcherModel: "figure",
+    showEquipment: true,
+    keyframePanelOpen: false,
 };
 export interface UiSettings {
     lockX: boolean;

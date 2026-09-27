@@ -12,6 +12,7 @@ import {
     MarcherInstancesByShape,
 } from "../scene/marcherInstances";
 import type { CameraPose } from "../camera/defaultCamera";
+import { CameraKeyframe, cameraPoseAtTime } from "../camera/cameraKeyframes";
 import {
     FixedCameraPresetId,
     followBlend,
@@ -20,10 +21,11 @@ import {
     lerpCameraPose,
 } from "../camera/cameraPresets";
 
-/** Camera for a 3D video: a fixed preset, or following one marcher. */
+/** Camera for a 3D video: a fixed preset, following one marcher, or keyframes. */
 export type Export3DCamera =
     | { kind: "preset"; preset: FixedCameraPresetId }
-    | { kind: "follow"; marcherId: number };
+    | { kind: "follow"; marcherId: number }
+    | { kind: "keyframes"; keyframes: CameraKeyframe[] };
 
 export interface Export3DFrame {
     /** Shape, color and visibility of every shown marcher, from the active page */
@@ -109,7 +111,15 @@ export function createExportAnimation({
             return {
                 instancesByShape: instancesForPage(page),
                 poses,
-                camera: fixedCamera ?? nextFollowPose(deltaSeconds),
+                camera:
+                    fixedCamera ??
+                    (camera.kind === "keyframes"
+                        ? (cameraPoseAtTime(
+                              camera.keyframes,
+                              timeMilliseconds,
+                          ) ??
+                          getCameraPresetPose("press-box", fieldProperties))
+                        : nextFollowPose(deltaSeconds)),
             };
         },
     };

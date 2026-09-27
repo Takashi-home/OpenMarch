@@ -35,12 +35,13 @@ const viewModeOptions: {
 ];
 
 const view3dToggles: {
-    setting: "showLabels" | "showStadium" | "shadows";
+    setting: "showLabels" | "showStadium" | "shadows" | "showEquipment";
     keyName: string;
 }[] = [
     { setting: "showLabels", keyName: "toolbar.view.view3d.labels" },
     { setting: "showStadium", keyName: "toolbar.view.view3d.stadium" },
     { setting: "shadows", keyName: "toolbar.view.view3d.shadows" },
+    { setting: "showEquipment", keyName: "toolbar.view.view3d.equipment" },
 ];
 
 /** 2D / 3D / split switch, shown once the experimental 3D view is enabled. */

@@ -7,8 +7,11 @@ import {
 
 type FieldSize = Parameters<typeof getFieldWorldBounds>[0];
 
-/** Presets with a fixed pose; "follow" and "free" depend on the scene. */
-export type FixedCameraPresetId = Exclude<CameraPresetId, "follow" | "free">;
+/** Presets with a fixed pose; the others depend on the scene or the time. */
+export type FixedCameraPresetId = Exclude<
+    CameraPresetId,
+    "follow" | "keyframes" | "free"
+>;
 
 export const FIXED_CAMERA_PRESETS: readonly FixedCameraPresetId[] = [
     "press-box",

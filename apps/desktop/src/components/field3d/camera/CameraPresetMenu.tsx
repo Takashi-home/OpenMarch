@@ -8,11 +8,13 @@ import { useTolgee } from "@tolgee/react";
 import { useSelectedMarchers } from "@/context/SelectedMarchersContext";
 import { CameraPresetId, useUiSettingsStore } from "@/stores/UiSettingsStore";
 import { FIXED_CAMERA_PRESETS } from "./cameraPresets";
+import { useShowCameraKeyframes } from "../hooks/useShowKey";
 
 /** Presets offered in the menu, in order. "free" only appears as the current value. */
 export const MENU_CAMERA_PRESETS: readonly CameraPresetId[] = [
     ...FIXED_CAMERA_PRESETS,
     "follow",
+    "keyframes",
 ];
 
 export const cameraPresetKey = (preset: CameraPresetId) =>
@@ -23,6 +25,7 @@ export default function CameraPresetMenu() {
     const { t } = useTolgee();
     const { uiSettings, setUiSettings } = useUiSettingsStore();
     const { selectedMarchers } = useSelectedMarchers()!;
+    const { keyframes } = useShowCameraKeyframes();
     const current = uiSettings.view3d.cameraPreset;
 
     const choose = (preset: string) =>
@@ -50,8 +53,10 @@ export default function CameraPresetMenu() {
                             key={preset}
                             value={preset}
                             disabled={
-                                preset === "follow" &&
-                                selectedMarchers.length === 0
+                                (preset === "follow" &&
+                                    selectedMarchers.length === 0) ||
+                                (preset === "keyframes" &&
+                                    keyframes.length === 0)
                             }
                         >
                             {t(cameraPresetKey(preset))}

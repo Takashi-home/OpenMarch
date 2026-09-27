@@ -11,6 +11,8 @@ import {
     MarcherPose,
     PAGE_TRANSITION_SECONDS,
 } from "../playback/livePlayback";
+import type { DragPreviewStore } from "../edit/dragPreview";
+import type { MarcherModel3D } from "@/stores/UiSettingsStore";
 import { createMarcherGeometry } from "./marcherGeometry";
 import { MARCHER_ROUGHNESS } from "./sceneStyle";
 import {
@@ -38,6 +40,8 @@ function ShapeInstances({
     smoothPageTransition,
     scale,
     displayedPoses,
+    dragPreview,
+    model,
 }: {
     shape: MarcherShape3D;
     instances: readonly MarcherInstance[];
@@ -46,9 +50,12 @@ function ShapeInstances({
     smoothPageTransition: boolean;
     scale: number;
     displayedPoses?: Map<number, MarcherPose>;
+    dragPreview?: DragPreviewStore;
+    model: MarcherModel3D;
 }) {
     const meshRef = useRef<InstancedMesh>(null);
     const lastFrameRef = useRef<PositionFrame | null>(null);
+    const dragVersionRef = useRef(dragPreview?.version ?? 0);
     /** Pose currently on screen for each marcher, to glide from on page changes */
     const shownPosesRef = useRef(new Map<number, MarcherPose>());
     const transitionRef = useRef<{
@@ -56,7 +63,10 @@ function ShapeInstances({
         elapsedSeconds: number;
     } | null>(null);
     const invalidate = useThree((state) => state.invalidate);
-    const geometry = useMemo(() => createMarcherGeometry(shape), [shape]);
+    const geometry = useMemo(
+        () => createMarcherGeometry(shape, model),
+        [shape, model],
+    );
     const material = useMemo(
         () => new MeshStandardMaterial({ roughness: MARCHER_ROUGHNESS }),
         [],
@@ -75,6 +85,10 @@ function ShapeInstances({
         const mesh = meshRef.current;
         if (!mesh) return;
         writeMarcherInstances(mesh, instances, scale);
+        // Lets 3D editing map a ray hit (instance index) back to a marcher
+        mesh.userData.marcherIds = instances.map(
+            (instance) => instance.marcherId,
+        );
         lastFrameRef.current = null;
 
         const shownPoses = shownPosesRef.current;
@@ -127,6 +141,7 @@ function ShapeInstances({
         scale,
         displayedPoses,
         invalidate,
+        geometry,
     ]);
 
     // Paused page change: glide from the previous positions to the new page
@@ -148,6 +163,29 @@ function ShapeInstances({
 
         if (progress >= 1) transitionRef.current = null;
         else invalidate();
+    });
+
+    // Dragging in 3D: draw dragged marchers where the pointer puts them
+    useFrame(() => {
+        const mesh = meshRef.current;
+        if (!mesh || !dragPreview || live) return;
+        if (dragPreview.version === dragVersionRef.current) return;
+        dragVersionRef.current = dragPreview.version;
+        transitionRef.current = null;
+
+        const shownPoses = shownPosesRef.current;
+        instances.forEach((instance, index) => {
+            const dragged = dragPreview.get(instance.marcherId);
+            const pose = {
+                x: dragged?.x ?? instance.x,
+                z: dragged?.z ?? instance.z,
+                yaw: instance.yaw,
+            };
+            writeMarcherPose(mesh, index, pose.x, pose.z, pose.yaw, scale);
+            shownPoses.set(instance.marcherId, pose);
+            displayedPoses?.set(instance.marcherId, pose);
+        });
+        mesh.instanceMatrix.needsUpdate = true;
     });
 
     // Playback: move marchers to the latest clock frame without re-rendering React
@@ -180,8 +218,9 @@ function ShapeInstances({
 
     return (
         <instancedMesh
-            // Recreate the mesh when the capacity grows, since buffers are fixed-size
-            key={capacity}
+            // Recreate the mesh when the capacity grows (buffers are fixed-size)
+            // or the body model changes
+            key={`${capacity}-${geometry.uuid}`}
             ref={meshRef}
             args={[geometry, material, capacity]}
             castShadow
@@ -198,6 +237,8 @@ export default function MarchersInstanced({
     smoothPageTransition = true,
     scale = 1,
     displayedPoses,
+    dragPreview,
+    model = "simple",
 }: {
     instancesByShape: MarcherInstancesByShape;
     /** Upper bound on marchers per shape; usually the total marcher count */
@@ -213,6 +254,10 @@ export default function MarchersInstanced({
      * for labels and the follow camera
      */
     displayedPoses?: Map<number, MarcherPose>;
+    /** Positions of marchers being dragged in the 3D view */
+    dragPreview?: DragPreviewStore;
+    /** Marcher body style */
+    model?: MarcherModel3D;
 }) {
     return (
         <group>
@@ -226,6 +271,8 @@ export default function MarchersInstanced({
                     smoothPageTransition={smoothPageTransition}
                     scale={scale}
                     displayedPoses={displayedPoses}
+                    dragPreview={dragPreview}
+                    model={model}
                 />
             ))}
         </group>

@@ -5,6 +5,8 @@ import type { FieldProperties } from "@openmarch/core";
 import type { CameraPresetId } from "@/stores/UiSettingsStore";
 import type { MarcherPose } from "../playback/livePlayback";
 import type { CameraPose } from "./defaultCamera";
+import type { CameraBridge } from "./cameraBridge";
+import { CameraKeyframe, cameraPoseAtTime } from "./cameraKeyframes";
 import {
     CAMERA_TRANSITION_SECONDS,
     followBlend,
@@ -45,17 +47,27 @@ function applyPose(
     controls.update();
 }
 
+const posesEqual = (a: CameraPose, b: CameraPose) =>
+    a.fov === b.fov &&
+    a.position.every((value, i) => value === b.position[i]) &&
+    a.target.every((value, i) => value === b.target[i]);
+
 /**
  * Moves the camera to the chosen preset (with a short glide), follows a
- * marcher in "follow" mode, and reports when the user takes over with the
- * mouse so the preset can switch to "free".
+ * marcher in "follow" mode or the camera keyframes in "keyframes" mode, and
+ * reports when the user takes over with the mouse so the preset can switch to
+ * "free".
  */
+// eslint-disable-next-line max-lines-per-function
 export default function CameraRig({
     preset,
     fieldProperties,
     followMarcherId,
     displayedPoses,
     onUserControl,
+    keyframes = [],
+    showTimeMs = () => 0,
+    bridge,
 }: {
     preset: CameraPresetId;
     fieldProperties: Pick<
@@ -66,6 +78,12 @@ export default function CameraRig({
     followMarcherId: number | null;
     displayedPoses: ReadonlyMap<number, MarcherPose>;
     onUserControl: () => void;
+    /** Camera path for "keyframes" mode */
+    keyframes?: readonly CameraKeyframe[];
+    /** Current show time in milliseconds, for "keyframes" mode */
+    showTimeMs?: () => number;
+    /** Shares the view with UI outside the canvas */
+    bridge?: CameraBridge;
 }) {
     const camera = useThree((state) => state.camera) as PerspectiveCamera;
     const controls = useThree(
@@ -79,10 +97,23 @@ export default function CameraRig({
     } | null>(null);
     const hasAppliedRef = useRef(false);
 
-    // Glide to a fixed preset whenever it (or the field) changes
     useEffect(() => {
-        if (!controls || !isFixedCameraPreset(preset)) return;
-        const to = getCameraPresetPose(preset, fieldProperties);
+        if (!bridge) return;
+        bridge.invalidate = invalidate;
+        return () => {
+            bridge.invalidate = () => {};
+        };
+    }, [bridge, invalidate]);
+
+    // Glide to a fixed preset (or onto the keyframe path) when it changes
+    useEffect(() => {
+        if (!controls) return;
+        const to = isFixedCameraPreset(preset)
+            ? getCameraPresetPose(preset, fieldProperties)
+            : preset === "keyframes"
+              ? cameraPoseAtTime(keyframes, showTimeMs())
+              : null;
+        if (!to) return;
         if (!hasAppliedRef.current) {
             // First placement: no glide from the default camera
             hasAppliedRef.current = true;
@@ -95,7 +126,14 @@ export default function CameraRig({
             };
         }
         invalidate();
+        // Keyframe edits and page changes are picked up per frame, not here
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [preset, fieldProperties, camera, controls, invalidate]);
+
+    // Redraw when the keyframe path or the paused time changes
+    useEffect(() => {
+        if (preset === "keyframes") invalidate();
+    }, [preset, keyframes, showTimeMs, invalidate]);
 
     // Mouse or trackpad input hands the camera to the user
     useEffect(() => {
@@ -111,6 +149,12 @@ export default function CameraRig({
     useFrame((_, deltaSeconds) => {
         if (!controls) return;
 
+        const requested = bridge?.takeRequest();
+        if (requested) {
+            transitionRef.current = null;
+            applyPose(camera, controls, requested);
+        }
+
         const transition = transitionRef.current;
         if (transition) {
             transition.elapsedSeconds += deltaSeconds;
@@ -123,6 +167,13 @@ export default function CameraRig({
             );
             if (progress >= 1) transitionRef.current = null;
             else invalidate();
+            return;
+        }
+
+        if (preset === "keyframes") {
+            const pose = cameraPoseAtTime(keyframes, showTimeMs());
+            if (pose && !posesEqual(pose, readPose(camera, controls.target)))
+                applyPose(camera, controls, pose);
             return;
         }
 
@@ -145,6 +196,12 @@ export default function CameraRig({
             );
             if (remaining > 0.01) invalidate();
         }
+    });
+
+    // Report the final pose of each frame to UI outside the canvas
+    useFrame(() => {
+        if (bridge && controls)
+            bridge.current = readPose(camera, controls.target);
     });
 
     return null;
