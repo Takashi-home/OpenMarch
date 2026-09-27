@@ -3,6 +3,39 @@ import { create } from "zustand";
 export type FocusableComponents = "canvas" | "timeline";
 /** Which field views are shown in the workspace */
 export type ViewMode = "2d" | "3d" | "split";
+/** Camera positions in the 3D view; "free" is wherever the user moved it */
+export type CameraPresetId =
+    | "press-box"
+    | "stands-low"
+    | "end-zone"
+    | "top-down"
+    | "field-level"
+    | "follow"
+    | "free";
+
+/** Options for the experimental 3D view */
+export interface View3DSettings {
+    cameraPreset: CameraPresetId;
+    /** Drill number labels above marchers */
+    showLabels: boolean;
+    /** Simple stands on the audience side */
+    showStadium: boolean;
+    /** Sun shadows (costly on slower GPUs) */
+    shadows: boolean;
+    /** Marcher body size multiplier, 0.5–2 */
+    marcherScale: number;
+    /** Glide to new positions when the page changes while paused */
+    smoothPageTransition: boolean;
+}
+
+export const defaultView3DSettings: View3DSettings = {
+    cameraPreset: "press-box",
+    showLabels: false,
+    showStadium: true,
+    shadows: false,
+    marcherScale: 1,
+    smoothPageTransition: true,
+};
 export interface UiSettings {
     lockX: boolean;
     lockY: boolean;
@@ -56,6 +89,8 @@ export interface UiSettings {
     experimental3dView: boolean;
     /** Which field views are shown (only used when the 3D view is enabled) */
     viewMode: ViewMode;
+    /** 3D view options */
+    view3d: View3DSettings;
 }
 
 // Default settings that will be used if no localStorage data exists
@@ -88,6 +123,7 @@ export const defaultSettings: UiSettings = {
     tolgeeDevTools: false,
     experimental3dView: false,
     viewMode: "2d",
+    view3d: defaultView3DSettings,
 };
 
 const STORAGE_KEY = "openmarch:uiSettings";
@@ -123,6 +159,7 @@ const loadSettings = (): UiSettings => {
                       ...parsed.coordinateRounding,
                   }
                 : defaultSettings.coordinateRounding,
+            view3d: { ...defaultView3DSettings, ...parsed.view3d },
         };
     } catch (error) {
         console.error("Failed to load UI settings from localStorage:", error);

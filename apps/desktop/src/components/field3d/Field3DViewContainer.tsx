@@ -2,6 +2,7 @@ import { lazy, Suspense } from "react";
 import { CircleNotchIcon, CubeIcon } from "@phosphor-icons/react";
 import { T } from "@tolgee/react";
 import { useWebGLSupport } from "./hooks/useWebGLSupport";
+import CameraPresetMenu from "./camera/CameraPresetMenu";
 
 // three.js is only loaded once the 3D view is shown
 const Field3DView = lazy(() => import("./Field3DView"));
@@ -27,6 +28,7 @@ export default function Field3DViewContainer() {
                     }
                 >
                     <Field3DView />
+                    <CameraPresetMenu />
                 </Suspense>
             ) : (
                 <div className="text-text-subtitle flex h-full w-full flex-col items-center justify-center gap-8 p-16 text-center">

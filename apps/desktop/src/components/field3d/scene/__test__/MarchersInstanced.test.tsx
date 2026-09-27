@@ -16,6 +16,7 @@ const instance = (marcherId: number) => ({
     z: -marcherId,
     yaw: 0,
     color: { r: 0.5, g: 0.5, b: 0.5 },
+    labelVisible: true,
 });
 
 const instancesByShape: MarcherInstancesByShape = {
@@ -187,6 +188,30 @@ describe("MarchersInstanced", () => {
         const matrix = new Matrix4();
         mesh.getMatrixAt(0, matrix);
         expect(new Vector3().setFromMatrixPosition(matrix).x).toBeCloseTo(9);
+        await renderer.unmount();
+    });
+
+    it("reports displayed poses and applies the size setting", async () => {
+        const displayedPoses = new Map();
+        const renderer = await ReactThreeTestRenderer.create(
+            <MarchersInstanced
+                instancesByShape={instancesByShape}
+                capacity={5}
+                scale={2}
+                displayedPoses={displayedPoses}
+            />,
+        );
+
+        expect([...displayedPoses.keys()].sort()).toEqual([1, 2, 3, 4, 5]);
+        expect(displayedPoses.get(4)).toEqual({ x: 4, z: -4, yaw: 0 });
+
+        const mesh = renderer.scene.findAll(
+            (node) => node.instance instanceof InstancedMesh,
+        )[0].instance as InstancedMesh;
+        const matrix = new Matrix4();
+        mesh.getMatrixAt(0, matrix);
+        const scale = new Vector3().setFromMatrixScale(matrix);
+        expect(scale.toArray()).toEqual([2, 2, 2]);
         await renderer.unmount();
     });
 });

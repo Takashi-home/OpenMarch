@@ -157,13 +157,21 @@ describe("writeMarcherInstances", () => {
     it("writes positions, rotation and colors and sets the draw count", () => {
         const mesh = createMesh(4);
         writeMarcherInstances(mesh, [
-            { marcherId: 1, x: 1, z: 2, yaw: 0, color: { r: 1, g: 0, b: 0 } },
+            {
+                marcherId: 1,
+                x: 1,
+                z: 2,
+                yaw: 0,
+                color: { r: 1, g: 0, b: 0 },
+                labelVisible: true,
+            },
             {
                 marcherId: 2,
                 x: -3,
                 z: 4,
                 yaw: Math.PI / 2,
                 color: { r: 0, g: 0, b: 1 },
+                labelVisible: true,
             },
         ]);
 
@@ -187,6 +195,7 @@ describe("writeMarcherInstances", () => {
             z: 0,
             yaw: 0,
             color: { r: 0, g: 0, b: 0 },
+            labelVisible: true,
         };
         expect(() =>
             writeMarcherInstances(mesh, [instance, instance]),

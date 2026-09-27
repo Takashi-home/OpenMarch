@@ -55,6 +55,7 @@ export default function FieldMesh({
         <group>
             {/* Ground around the field so the view never shows a void */}
             <mesh
+                receiveShadow
                 rotation-x={-Math.PI / 2}
                 position={[bounds.centerX, -0.01, bounds.centerZ]}
             >
@@ -70,6 +71,7 @@ export default function FieldMesh({
                 />
             </mesh>
             <mesh
+                receiveShadow
                 rotation-x={-Math.PI / 2}
                 position={[bounds.centerX, 0, bounds.centerZ]}
             >

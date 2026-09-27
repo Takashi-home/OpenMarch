@@ -41,6 +41,8 @@ export interface MarcherInstance {
     yaw: number;
     /** sRGB channels in the 0–1 range */
     color: Color3;
+    /** Whether the appearance shows the drill number label */
+    labelVisible: boolean;
 }
 
 export type MarcherInstancesByShape = Record<MarcherShape3D, MarcherInstance[]>;
@@ -129,6 +131,7 @@ export function buildMarcherInstances({
             z: world.z,
             yaw: rotationDegreesToYaw(marcherPage.rotation_degrees),
             color: marcherBodyColor(appearance),
+            labelVisible: appearance.textVisible,
         });
     }
 

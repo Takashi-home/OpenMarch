@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -8,8 +8,10 @@ import {
     marcherAppearancesQueryOptions,
     marcherPagesByPageQueryOptions,
 } from "@/hooks/queries";
+import { useTimingObjects } from "@/hooks";
 import { useIsPlaying } from "@/context/IsPlayingContext";
 import { useSelectedPage } from "@/context/SelectedPageContext";
+import { useSelectedMarchers } from "@/context/SelectedMarchersContext";
 import { useDatabaseReady } from "@/hooks/useDatabaseReady";
 import { useUiSettingsStore } from "@/stores/UiSettingsStore";
 import { playbackClock } from "@/utilities/playback/PlaybackClock";
@@ -17,16 +19,27 @@ import {
     getFieldWorldBounds,
     pressBoxCameraPose,
 } from "./camera/defaultCamera";
+import { MAX_POLAR_ANGLE } from "./camera/cameraPresets";
+import CameraRig from "./camera/CameraRig";
 import FieldMesh from "./scene/FieldMesh";
 import Lighting from "./scene/Lighting";
 import MarchersInstanced, {
     LiveMarcherPlayback,
 } from "./scene/MarchersInstanced";
+import MarcherLabels, { MarcherLabel } from "./scene/MarcherLabels";
+import PathwaysLayer from "./scene/PathwaysLayer";
+import Stadium from "./scene/Stadium";
+import { MARCHER_BODY } from "./scene/marcherGeometry";
+import {
+    buildMarcherInstances,
+    MARCHER_SHAPES_3D,
+} from "./scene/marcherInstances";
+import { buildPathSegments } from "./scene/pathSegments";
 import {
     createHeadingTracker,
     createLivePositionStore,
+    MarcherPose,
 } from "./playback/livePlayback";
-import { buildMarcherInstances } from "./scene/marcherInstances";
 
 const SKY_COLOR = "#a9c8e8";
 
@@ -37,12 +50,16 @@ const SKY_COLOR = "#a9c8e8";
  * Data is read here, outside the R3F <Canvas>, and passed down as props so the
  * scene does not depend on React contexts crossing into the R3F renderer.
  */
+// eslint-disable-next-line max-lines-per-function
 export default function Field3DView() {
     const queryClient = useQueryClient();
     const databaseReady = useDatabaseReady();
+    const { pages } = useTimingObjects()!;
     const { selectedPage } = useSelectedPage()!;
+    const { selectedMarchers } = useSelectedMarchers()!;
     const { isPlaying } = useIsPlaying()!;
-    const { uiSettings } = useUiSettingsStore();
+    const { uiSettings, setUiSettings } = useUiSettingsStore();
+    const { view3d } = uiSettings;
 
     const { data: fieldProperties } = useQuery(
         fieldPropertiesQueryOptions(databaseReady),
@@ -50,6 +67,14 @@ export default function Field3DView() {
     const { data: marchers } = useQuery(allMarchersQueryOptions());
     const { data: marcherPages } = useQuery(
         marcherPagesByPageQueryOptions(selectedPage?.id),
+    );
+    const { data: previousMarcherPages } = useQuery(
+        marcherPagesByPageQueryOptions(
+            selectedPage?.previousPageId ?? undefined,
+        ),
+    );
+    const { data: nextMarcherPages } = useQuery(
+        marcherPagesByPageQueryOptions(selectedPage?.nextPageId ?? undefined),
     );
     const { data: marcherAppearances } = useQuery(
         marcherAppearancesQueryOptions(selectedPage?.id, queryClient),
@@ -64,6 +89,59 @@ export default function Field3DView() {
             fieldProperties,
         });
     }, [fieldProperties, marchers, marcherPages, marcherAppearances]);
+
+    /** What each marcher's mesh currently shows, for labels and the follow camera */
+    const displayedPoses = useMemo(() => new Map<number, MarcherPose>(), []);
+
+    const labels = useMemo<MarcherLabel[]>(() => {
+        if (!view3d.showLabels || !instancesByShape || !marchers) return [];
+        const drillNumbers = new Map(
+            marchers.map((marcher) => [marcher.id, marcher.drill_number]),
+        );
+        return MARCHER_SHAPES_3D.flatMap((shape) => instancesByShape[shape])
+            .filter((instance) => instance.labelVisible)
+            .map((instance) => ({
+                marcherId: instance.marcherId,
+                text: drillNumbers.get(instance.marcherId) ?? "",
+            }));
+    }, [view3d.showLabels, instancesByShape, marchers]);
+
+    const pathSegments = useMemo(() => {
+        if (
+            isPlaying ||
+            !fieldProperties ||
+            !marchers ||
+            !marcherPages ||
+            !selectedPage ||
+            (!uiSettings.previousPaths && !uiSettings.nextPaths)
+        )
+            return null;
+        const nextPage = pages.find((p) => p.id === selectedPage.nextPageId);
+        return buildPathSegments({
+            marcherIds: marchers.map((marcher) => marcher.id),
+            current: marcherPages,
+            previous: previousMarcherPages ?? {},
+            next: nextMarcherPages ?? {},
+            currentPageCounts: selectedPage.counts,
+            nextPageCounts: nextPage?.counts,
+            previousPathsEnabled: uiSettings.previousPaths,
+            nextPathsEnabled: uiSettings.nextPaths,
+            stepSizeWarningsEnabled: uiSettings.stepSizeWarnings,
+            fieldProperties,
+        });
+    }, [
+        isPlaying,
+        fieldProperties,
+        marchers,
+        marcherPages,
+        previousMarcherPages,
+        nextMarcherPages,
+        selectedPage,
+        pages,
+        uiSettings.previousPaths,
+        uiSettings.nextPaths,
+        uiSettings.stepSizeWarnings,
+    ]);
 
     const livePositions = useMemo(() => createLivePositionStore(), []);
     const headings = useMemo(() => createHeadingTracker(), []);
@@ -88,13 +166,27 @@ export default function Field3DView() {
         [isPlaying, fieldProperties, livePositions, headings],
     );
 
-    const camera = useMemo(
+    // Orbiting by hand switches the preset to "free" so it is not snapped back
+    const handleUserCameraControl = useCallback(() => {
+        const { uiSettings: latest } = useUiSettingsStore.getState();
+        if (latest.view3d.cameraPreset === "free") return;
+        setUiSettings({
+            ...latest,
+            view3d: { ...latest.view3d, cameraPreset: "free" },
+        });
+    }, [setUiSettings]);
+
+    const initialCamera = useMemo(
         () => (fieldProperties ? pressBoxCameraPose(fieldProperties) : null),
         [fieldProperties],
     );
+    const bounds = useMemo(
+        () => (fieldProperties ? getFieldWorldBounds(fieldProperties) : null),
+        [fieldProperties],
+    );
 
-    if (!fieldProperties || !camera) return null;
-    const bounds = getFieldWorldBounds(fieldProperties);
+    if (!fieldProperties || !initialCamera || !bounds) return null;
+    const labelColor = fieldProperties.theme.defaultMarcher.label;
 
     return (
         <Canvas
@@ -102,34 +194,63 @@ export default function Field3DView() {
             // Draw every frame while playing; otherwise only when something changes
             frameloop={isPlaying ? "always" : "demand"}
             dpr={[1, 2]}
+            shadows={view3d.shadows}
             gl={{ antialias: true, powerPreference: "high-performance" }}
             camera={{
-                position: camera.position,
-                fov: camera.fov,
+                position: initialCamera.position,
+                fov: initialCamera.fov,
                 near: 0.1,
                 far: 5000,
             }}
         >
             <color attach="background" args={[SKY_COLOR]} />
-            <Lighting bounds={bounds} />
+            <Lighting bounds={bounds} shadows={view3d.shadows} />
             <FieldMesh
                 fieldProperties={fieldProperties}
                 gridLines={uiSettings.gridLines}
                 halfLines={uiSettings.halfLines}
             />
+            {view3d.showStadium && (
+                <Stadium bounds={bounds} shadows={view3d.shadows} />
+            )}
+            {pathSegments && (
+                <PathwaysLayer
+                    segments={pathSegments}
+                    previousColor={fieldProperties.theme.previousPath}
+                    nextColor={fieldProperties.theme.nextPath}
+                />
+            )}
             {instancesByShape && (
                 <MarchersInstanced
                     instancesByShape={instancesByShape}
                     capacity={marchers?.length ?? 0}
                     live={live}
+                    smoothPageTransition={view3d.smoothPageTransition}
+                    scale={view3d.marcherScale}
+                    displayedPoses={displayedPoses}
+                />
+            )}
+            {labels.length > 0 && (
+                <MarcherLabels
+                    labels={labels}
+                    displayedPoses={displayedPoses}
+                    labelHeight={MARCHER_BODY.height * view3d.marcherScale}
+                    textColor={`rgb(${labelColor.r}, ${labelColor.g}, ${labelColor.b})`}
                 />
             )}
             <OrbitControls
                 makeDefault
-                target={camera.target}
-                maxPolarAngle={Math.PI / 2 - 0.05}
+                target={initialCamera.target}
+                maxPolarAngle={MAX_POLAR_ANGLE}
                 minDistance={2}
                 maxDistance={Math.max(bounds.width, bounds.depth) * 3}
+            />
+            <CameraRig
+                preset={view3d.cameraPreset}
+                fieldProperties={fieldProperties}
+                followMarcherId={selectedMarchers[0]?.id ?? null}
+                displayedPoses={displayedPoses}
+                onUserControl={handleUserCameraControl}
             />
         </Canvas>
     );

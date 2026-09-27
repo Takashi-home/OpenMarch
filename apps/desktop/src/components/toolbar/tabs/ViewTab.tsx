@@ -34,6 +34,15 @@ const viewModeOptions: {
     },
 ];
 
+const view3dToggles: {
+    setting: "showLabels" | "showStadium" | "shadows";
+    keyName: string;
+}[] = [
+    { setting: "showLabels", keyName: "toolbar.view.view3d.labels" },
+    { setting: "showStadium", keyName: "toolbar.view.view3d.stadium" },
+    { setting: "shadows", keyName: "toolbar.view.view3d.shadows" },
+];
+
 /** 2D / 3D / split switch, shown once the experimental 3D view is enabled. */
 function ViewModeToolbar() {
     const { t } = useTolgee();
@@ -62,6 +71,29 @@ function ViewModeToolbar() {
                     </button>
                 );
             })}
+            {view3dToggles.map(({ setting, keyName }) => (
+                <button
+                    key={setting}
+                    aria-pressed={uiSettings.view3d[setting]}
+                    onClick={() =>
+                        setUiSettings({
+                            ...uiSettings,
+                            view3d: {
+                                ...uiSettings.view3d,
+                                [setting]: !uiSettings.view3d[setting],
+                            },
+                        })
+                    }
+                    className="hover:text-accent flex items-center gap-8 outline-hidden duration-150 ease-out focus-visible:-translate-y-4 disabled:opacity-50"
+                >
+                    <T keyName={keyName} />
+                    {uiSettings.view3d[setting] ? (
+                        <EyeIcon className="text-accent" size={24} />
+                    ) : (
+                        <EyeSlashIcon size={24} />
+                    )}
+                </button>
+            ))}
         </ToolbarSection>
     );
 }

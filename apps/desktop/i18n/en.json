@@ -87,7 +87,13 @@
             "showNextPaths": "Show next page dots/paths",
             "showPreviousPaths": "Show previous page dots/paths",
             "toggleNextPaths": "Toggle viewing next page paths",
-            "togglePreviousPaths": "Toggle viewing previous page paths"
+            "togglePreviousPaths": "Toggle viewing previous page paths",
+            "cameraEndZone": "3D view: end zone camera",
+            "cameraFieldLevel": "3D view: field level camera",
+            "cameraPressBox": "3D view: press box camera",
+            "cameraStandsLow": "3D view: front row camera",
+            "cameraTopDown": "3D view: top-down camera",
+            "toggle3dView": "Switch between the 2D and 3D views"
         }
     },
     "analyticsOptIn": {
@@ -345,6 +351,14 @@
         "title": "Field"
     },
     "field3d": {
+        "camera.end-zone": "End zone",
+        "camera.field-level": "Field level",
+        "camera.follow": "Follow selected marcher",
+        "camera.free": "Free view",
+        "camera.label": "Camera",
+        "camera.press-box": "Press box",
+        "camera.stands-low": "Front row",
+        "camera.top-down": "Top down",
         "webglUnavailable": "The 3D view is unavailable because WebGL could not start. Hardware acceleration may be turned off."
     },
     "fieldProperties": {
@@ -1045,6 +1059,8 @@
         "general.language": "Language",
         "general.experimental3dView": "3D view (experimental)",
         "general.showFullDatabasePath": "Show full file path",
+        "general.view3d.marcherScale": "3D marcher size",
+        "general.view3d.smoothPageTransition": "Glide between pages in 3D",
         "mouse": "Mouse & Trackpad",
         "mouse.panSensitivity": "Pan sensitivity",
         "mouse.trackpadMode": "Trackpad mode (recommended for macOS)",
@@ -1181,7 +1197,10 @@
             "viewMode": "View mode",
             "viewMode.2d": "2D",
             "viewMode.3d": "3D",
-            "viewMode.split": "Split"
+            "viewMode.split": "Split",
+            "view3d.labels": "3D labels",
+            "view3d.shadows": "3D shadows",
+            "view3d.stadium": "3D stands"
         }
     },
     "versionCheck": {

@@ -87,7 +87,13 @@
             "showNextPaths": "次のページ ドット/パスを表示",
             "showPreviousPaths": "前のページ ドット/パスを表示",
             "toggleNextPaths": "次のページ パスの表示を切り替え",
-            "togglePreviousPaths": "前のページ パスの表示を切り替え"
+            "togglePreviousPaths": "前のページ パスの表示を切り替え",
+            "cameraEndZone": "3D ビュー: エンドゾーンのカメラ",
+            "cameraFieldLevel": "3D ビュー: フィールドレベルのカメラ",
+            "cameraPressBox": "3D ビュー: スタンド中央のカメラ",
+            "cameraStandsLow": "3D ビュー: スタンド前列のカメラ",
+            "cameraTopDown": "3D ビュー: 真上のカメラ",
+            "toggle3dView": "2D と 3D ビューを切り替え"
         }
     },
     "analyticsOptIn": {
@@ -345,6 +351,14 @@
         "title": "フィールド"
     },
     "field3d": {
+        "camera.end-zone": "エンドゾーン",
+        "camera.field-level": "フィールドレベル",
+        "camera.follow": "選択中のマーチャーを追従",
+        "camera.free": "自由視点",
+        "camera.label": "カメラ",
+        "camera.press-box": "スタンド中央",
+        "camera.stands-low": "スタンド前列",
+        "camera.top-down": "真上",
         "webglUnavailable": "WebGL を開始できないため、3D ビューを利用できません。ハードウェアアクセラレーションが無効になっている可能性があります。"
     },
     "fieldProperties": {
@@ -1032,6 +1046,8 @@
         "general.language": "言語",
         "general.experimental3dView": "3D ビュー（実験的機能）",
         "general.showFullDatabasePath": "フル ファイル パスを表示",
+        "general.view3d.marcherScale": "3D のマーチャーの大きさ",
+        "general.view3d.smoothPageTransition": "3D でページ間を滑らかに移動",
         "mouse": "マウス ＆ トラックパッド",
         "mouse.panSensitivity": "パン 感度",
         "mouse.trackpadMode": "トラックパッド モード （ macOS に推奨 ）",
@@ -1164,7 +1180,10 @@
             "viewMode": "表示モード",
             "viewMode.2d": "2D",
             "viewMode.3d": "3D",
-            "viewMode.split": "分割"
+            "viewMode.split": "分割",
+            "view3d.labels": "3D ラベル",
+            "view3d.shadows": "3D の影",
+            "view3d.stadium": "3D スタンド"
         }
     },
     "versionCheck": {

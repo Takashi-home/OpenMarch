@@ -8,7 +8,7 @@ import {
 import { createCircle } from "@openmarch/core";
 import { useSelectedMarchers } from "@/context/SelectedMarchersContext";
 import { useSelectedPage } from "@/context/SelectedPageContext";
-import { useUiSettingsStore } from "@/stores/UiSettingsStore";
+import { CameraPresetId, useUiSettingsStore } from "@/stores/UiSettingsStore";
 import { useCallback, useEffect, useRef } from "react";
 import * as CoordinateActions from "./CoordinateActions";
 import { getNextPage, getPreviousPage } from "@/global/classes/Page";
@@ -85,6 +85,12 @@ export enum RegisteredActionsEnum {
     togglePreviousPagePaths = "togglePreviousPagePaths",
     focusCanvas = "focusCanvas",
     focusTimeline = "focusTimeline",
+    toggle3dView = "toggle3dView",
+    cameraPressBox = "cameraPressBox",
+    cameraStandsLow = "cameraStandsLow",
+    cameraEndZone = "cameraEndZone",
+    cameraTopDown = "cameraTopDown",
+    cameraFieldLevel = "cameraFieldLevel",
 
     // Cursor Mode
     applyQuickShape = "applyQuickShape",
@@ -100,6 +106,15 @@ export enum RegisteredActionsEnum {
     // Shapes
     createCircle = "createCircle",
 }
+
+/** 3D view camera preset chosen by each camera shortcut */
+const cameraPresetForAction = {
+    [RegisteredActionsEnum.cameraPressBox]: "press-box",
+    [RegisteredActionsEnum.cameraStandsLow]: "stands-low",
+    [RegisteredActionsEnum.cameraEndZone]: "end-zone",
+    [RegisteredActionsEnum.cameraTopDown]: "top-down",
+    [RegisteredActionsEnum.cameraFieldLevel]: "field-level",
+} as const satisfies Partial<Record<RegisteredActionsEnum, CameraPresetId>>;
 
 /**
  * THIS SHOULD NOT BE USED DIRECTLY. Use the RegisteredActionsEnum and RegisteredActionsObjects instead.
@@ -468,6 +483,36 @@ export const RegisteredActionsObjects: {
         descKey: "actions.ui.focusTimeline",
         enumString: "focusTimeline",
         keyboardShortcut: new KeyboardShortcut({ key: "t", alt: true }),
+    }),
+    toggle3dView: new RegisteredAction({
+        descKey: "actions.ui.toggle3dView",
+        enumString: "toggle3dView",
+        keyboardShortcut: new KeyboardShortcut({ key: "3", shift: true }),
+    }),
+    cameraPressBox: new RegisteredAction({
+        descKey: "actions.ui.cameraPressBox",
+        enumString: "cameraPressBox",
+        keyboardShortcut: new KeyboardShortcut({ key: "1", alt: true }),
+    }),
+    cameraStandsLow: new RegisteredAction({
+        descKey: "actions.ui.cameraStandsLow",
+        enumString: "cameraStandsLow",
+        keyboardShortcut: new KeyboardShortcut({ key: "2", alt: true }),
+    }),
+    cameraEndZone: new RegisteredAction({
+        descKey: "actions.ui.cameraEndZone",
+        enumString: "cameraEndZone",
+        keyboardShortcut: new KeyboardShortcut({ key: "3", alt: true }),
+    }),
+    cameraTopDown: new RegisteredAction({
+        descKey: "actions.ui.cameraTopDown",
+        enumString: "cameraTopDown",
+        keyboardShortcut: new KeyboardShortcut({ key: "4", alt: true }),
+    }),
+    cameraFieldLevel: new RegisteredAction({
+        descKey: "actions.ui.cameraFieldLevel",
+        enumString: "cameraFieldLevel",
+        keyboardShortcut: new KeyboardShortcut({ key: "5", alt: true }),
     }),
 
     // Cursor Mode
@@ -1196,6 +1241,29 @@ function RegisteredActionsHandler() {
                         focussedComponent: "timeline",
                     });
                     break;
+                case RegisteredActionsEnum.toggle3dView:
+                    // Only while the experimental 3D view is turned on in settings
+                    if (!uiSettings.experimental3dView) break;
+                    setUiSettings({
+                        ...uiSettings,
+                        viewMode: uiSettings.viewMode === "2d" ? "3d" : "2d",
+                    });
+                    break;
+                case RegisteredActionsEnum.cameraPressBox:
+                case RegisteredActionsEnum.cameraStandsLow:
+                case RegisteredActionsEnum.cameraEndZone:
+                case RegisteredActionsEnum.cameraTopDown:
+                case RegisteredActionsEnum.cameraFieldLevel: {
+                    if (!uiSettings.experimental3dView) break;
+                    setUiSettings({
+                        ...uiSettings,
+                        view3d: {
+                            ...uiSettings.view3d,
+                            cameraPreset: cameraPresetForAction[action],
+                        },
+                    });
+                    break;
+                }
 
                 /****************** Cursor Mode ******************/
                 case RegisteredActionsEnum.cancelAlignmentUpdates: {
