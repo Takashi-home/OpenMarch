@@ -7,10 +7,12 @@ import type { MarcherPose } from "../playback/livePlayback";
 import type { CameraPose } from "./defaultCamera";
 import {
     CAMERA_TRANSITION_SECONDS,
+    followBlend,
     followCameraPose,
     getCameraPresetPose,
     interpolateCameraPose,
     isFixedCameraPreset,
+    lerpCameraPose,
 } from "./cameraPresets";
 
 /** The parts of drei's OrbitControls (`makeDefault`) the rig uses. */
@@ -20,9 +22,6 @@ interface OrbitControlsLike {
     addEventListener(type: "start", listener: () => void): void;
     removeEventListener(type: "start", listener: () => void): void;
 }
-
-/** How quickly the follow camera catches up with its marcher (1/seconds). */
-const FOLLOW_STIFFNESS = 6;
 
 function readPose(camera: PerspectiveCamera, target: Vector3): CameraPose {
     return {
@@ -132,12 +131,11 @@ export default function CameraRig({
             if (!marcher) return;
             const desired = followCameraPose(marcher, camera.fov);
             // Ease toward the marcher so the camera does not jerk
-            const blend = 1 - Math.exp(-FOLLOW_STIFFNESS * deltaSeconds);
             const current = readPose(camera, controls.target);
             applyPose(
                 camera,
                 controls,
-                interpolateLinear(current, desired, blend),
+                lerpCameraPose(current, desired, followBlend(deltaSeconds)),
             );
             const [x, y, z] = desired.position;
             const remaining = Math.hypot(
@@ -150,22 +148,4 @@ export default function CameraRig({
     });
 
     return null;
-}
-
-function interpolateLinear(
-    from: CameraPose,
-    to: CameraPose,
-    t: number,
-): CameraPose {
-    const mix = (a: readonly number[], b: readonly number[]) =>
-        [0, 1, 2].map((i) => a[i] + (b[i] - a[i]) * t) as [
-            number,
-            number,
-            number,
-        ];
-    return {
-        position: mix(from.position, to.position),
-        target: mix(from.target, to.target),
-        fov: from.fov + (to.fov - from.fov) * t,
-    };
 }

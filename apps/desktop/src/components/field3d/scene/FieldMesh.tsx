@@ -1,14 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useThree } from "@react-three/fiber";
 import { CanvasTexture, SRGBColorSpace } from "three";
-import { FieldProperties, RgbaColor } from "@openmarch/core";
+import { FieldProperties } from "@openmarch/core";
 import { getFieldWorldBounds } from "../camera/defaultCamera";
 import { renderFieldTextureCanvas } from "./fieldTexture";
-
-/** How far the ground extends past the field on every side, in meters. */
-const SURROUNDING_GROUND_MARGIN = 400;
-
-const rgbCss = ({ r, g, b }: RgbaColor) => `rgb(${r}, ${g}, ${b})`;
+import { rgbCss, SURROUNDING_GROUND_MARGIN } from "./sceneStyle";
 
 /** The field, textured with the same drawing as the 2D editor, on a wider ground plane. */
 export default function FieldMesh({

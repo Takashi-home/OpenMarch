@@ -12,6 +12,7 @@ import {
     PAGE_TRANSITION_SECONDS,
 } from "../playback/livePlayback";
 import { createMarcherGeometry } from "./marcherGeometry";
+import { MARCHER_ROUGHNESS } from "./sceneStyle";
 import {
     MARCHER_SHAPES_3D,
     MarcherInstance,
@@ -57,7 +58,7 @@ function ShapeInstances({
     const invalidate = useThree((state) => state.invalidate);
     const geometry = useMemo(() => createMarcherGeometry(shape), [shape]);
     const material = useMemo(
-        () => new MeshStandardMaterial({ roughness: 0.6 }),
+        () => new MeshStandardMaterial({ roughness: MARCHER_ROUGHNESS }),
         [],
     );
 

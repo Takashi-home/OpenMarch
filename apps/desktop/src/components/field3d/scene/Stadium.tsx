@@ -6,6 +6,7 @@ import {
     MeshStandardMaterial,
 } from "three";
 import type { FieldWorldBounds } from "../camera/defaultCamera";
+import { STANDS_COLOR, STANDS_ROUGHNESS } from "./sceneStyle";
 
 export interface StandsLayout {
     rows: number;
@@ -61,7 +62,11 @@ export default function Stadium({
     const rows = useMemo(() => standRowBoxes(bounds), [bounds]);
     const geometry = useMemo(() => new BoxGeometry(1, 1, 1), []);
     const material = useMemo(
-        () => new MeshStandardMaterial({ color: "#9aa0a6", roughness: 0.9 }),
+        () =>
+            new MeshStandardMaterial({
+                color: STANDS_COLOR,
+                roughness: STANDS_ROUGHNESS,
+            }),
         [],
     );
     useEffect(

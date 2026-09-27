@@ -136,3 +136,24 @@ export function followCameraPose(
         fov,
     };
 }
+
+/** Straight-line blend between two poses (no easing), for per-frame catch-up. */
+export function lerpCameraPose(
+    from: CameraPose,
+    to: CameraPose,
+    t: number,
+): CameraPose {
+    return {
+        position: lerp3(from.position, to.position, t),
+        target: lerp3(from.target, to.target, t),
+        fov: from.fov + (to.fov - from.fov) * t,
+    };
+}
+
+/** How quickly the follow camera catches up with its marcher (1/seconds). */
+export const FOLLOW_STIFFNESS = 6;
+
+/** Share of the remaining distance the follow camera closes in one frame. */
+export function followBlend(deltaSeconds: number): number {
+    return 1 - Math.exp(-FOLLOW_STIFFNESS * Math.max(deltaSeconds, 0));
+}

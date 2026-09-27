@@ -3,9 +3,7 @@ import { BufferGeometry, Float32BufferAttribute } from "three";
 import { RgbaColor } from "@openmarch/core";
 import { STEP_SIZE_WARNING_COLOR } from "@/global/classes/canvasObjects/stepSizeWarning";
 import type { PathSegments } from "./pathSegments";
-
-const rgbCss = ({ r, g, b }: Pick<RgbaColor, "r" | "g" | "b">) =>
-    `rgb(${r}, ${g}, ${b})`;
+import { rgbCss } from "./sceneStyle";
 
 function Segments({
     positions,
