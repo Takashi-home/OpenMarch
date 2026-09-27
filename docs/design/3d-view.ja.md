@@ -365,7 +365,7 @@ export function worldToField(
 | 移動中                             | 進行方向。`getCoordinatesAtTime(t)` と `getCoordinatesAtTime(t + Δ)` の差分 |
 | 移動量が閾値未満（マークタイム等） | 直前の向きを保持                                                            |
 
-- 角度の定義: `rotation_degrees = 0` を **+Z（観客側）を向く** とし、時計回りを正とします。2D 側の `rotation_degrees` の定義と一致しているかは実装フェーズ 0 で確認し、差異があれば変換関数 `rotationDegreesToYaw()` で吸収します。
+- 角度の定義: `rotation_degrees = 0` を **+Z（観客側）を向く** とし、時計回りを正とします。P0 で確認した時点では、2D 描画も動画書き出しも `rotation_degrees` を使っていません（常に 0）。そこで、3D ではこの定義を正とします（時計回りは、観客側を下にした 2D 表示を真上から見たときの向き）。実装は `rotationDegreesToYaw()` です。
 - 初期リリースでは、向きは **形状の見た目（三角形の向きや前面マーク）** にのみ使います。バックマーチ（後ろ向き移動）の判別は将来フェーズとします（`CoordinateDefinition` に回転情報が含まれていないため、タイムラインの拡張が必要）。
 - 向きの急変を避けるため、1 フレームあたりの角速度に上限を設け、最短回転方向で補間します。
 
@@ -478,26 +478,33 @@ export default function Field3DView({ mode }: { mode: "interactive" }) {
 ### 8.2 設計: PlaybackClock と PositionSink
 
 ```ts
-// utilities/playback/PlaybackClock.ts
+// utilities/playback/PlaybackClock.ts（P0 で実装済み）
 export interface PositionFrame {
-  timeMs: number;
+  timeMilliseconds: number;
   /** marcherId → フィールド座標（px）。終端を過ぎたマーチャーは含まない */
-  positions: Map<number, { x: number; y: number }>;
+  positions: ReadonlyMap<number, { x: number; y: number }>;
 }
 
 export interface PositionSink {
-  /** 毎フレーム呼ばれる。描画の要求まで行う */
-  apply(frame: PositionFrame): void;
+  /** 毎フレーム呼ばれる。描画の要求まで行う。false で再生停止を要求 */
+  apply(frame: PositionFrame): boolean;
 }
 
-export class PlaybackClock {
+export interface PlaybackClock {
   register(sink: PositionSink): () => void; // 登録解除関数を返す
-  tick(timeMs: number, timelines: Map<number, MarcherTimeline>): boolean;
+  tick(
+    timeMilliseconds: number,
+    marcherTimelines: ReadonlyMap<number, MarcherTimeline>,
+  ): boolean;
 }
+
+export function createPlaybackClock(): PlaybackClock;
+/** ライブ再生が駆動するアプリ共通のクロック */
+export const playbackClock: PlaybackClock;
 ```
 
 - `useAnimation` は「時刻取得 → 全マーチャーの座標を **1 回だけ** 計算 → 登録された全 sink に配る → ページ更新」という流れに変更します。
-- 2D 用の sink（`Fabric2DPositionSink`）は、現行の `setLiveCoordinates` + `requestRenderAll` をそのまま包むだけにして、2D の挙動を変えないようにします。
+- 2D 用の sink（`createFabricPositionSink`、`utilities/playback/fabricPositionSink.ts`）は、現行の `setLiveCoordinates` + `requestRenderAll` をそのまま包むだけにして、2D の挙動を変えないようにします。
 - 3D 用の sink は、受け取った座標を `Float32Array` のバッファに書き込むだけにします。実際の行列更新は R3F の `useFrame` で行います（R3F のレンダーループと rAF の順序に依存しないため）。
 
 ```mermaid
@@ -586,7 +593,12 @@ sequenceDiagram
 ```ts
 export type ViewMode = "2d" | "3d" | "split";
 export type CameraPresetId =
-  "press-box" | "stands-low" | "end-zone" | "top-down" | "field-level" | "free";
+  | "press-box"
+  | "stands-low"
+  | "end-zone"
+  | "top-down"
+  | "field-level"
+  | "free";
 
 export interface View3DSettings {
   cameraPreset: CameraPresetId;
@@ -838,14 +850,14 @@ pnpm --dir apps/desktop run e2e e2e/<3d-view-spec>.spec.ts
 
 各フェーズは独立した PR にし、フェーズ単位でリリース可能（機能フラグで隠せる）な状態を保ちます。
 
-| フェーズ            | 内容                                                                                                                                                | 受け入れ基準                                                                     |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| **P0 基盤**         | 依存追加（ADR 起票）、`fieldToWorld` / `heading` とテスト、`PlaybackClock` 導入と `useAnimation` の一般化（2D の挙動は不変）                        | 既存テスト・E2E がすべて通る。2D の再生に目に見える変化がない                    |
-| **P1 静的表示**     | `Field3DView`、`FieldMesh`、`MarchersInstanced`、`Lighting`、`viewMode` と ViewTab の切替（機能フラグ付き）、WebGL フォールバック                   | 選択ページの隊形が 3D で正しく表示される（N-06）。外観が 2D と一致               |
-| **P2 再生**         | 3D の PositionSink、`useFrame` による更新、向き、停止中のトランジション、分割表示                                                                   | 300 名で 60fps（N-01）。2D と 3D が同時に同期して動く                            |
-| **P3 カメラと UI**  | カメラプリセット、自由視点、追従、ラベル、経路、スタンド、ショートカット、i18n                                                                      | 各プリセットがすべてのフィールドテンプレートで破綻しない。英語・日本語で UI 表示 |
-| **P4 動画書き出し** | `FrameRenderer` 抽象化、`Three3DFrameRenderer`、オーバーレイ合成、カメラ設定 UI、ベンチマーク                                                       | 3D 動画が音声同期で書き出せる。同じ入力で同じ出力（N-05）。2D 書き出しの回帰なし |
-| **P5 将来**         | 3D 上の選択・ドラッグ編集（`worldToField` + レイキャスト）、プロップの 3D 化、人体モデルと歩行アニメーション、カメラキーフレームの保存、VR（WebXR） | 個別に設計                                                                       |
+| フェーズ            | 内容                                                                                                                                                               | 受け入れ基準                                                                     |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------- |
+| **P0 基盤**         | `fieldToWorld` / `heading` とテスト、`PlaybackClock` 導入と `useAnimation` の一般化（2D の挙動は不変）。three.js 等の依存追加と ADR は、実際に使い始める P1 に移動 | 既存テスト・E2E がすべて通る。2D の再生に目に見える変化がない                    |
+| **P1 静的表示**     | `Field3DView`、`FieldMesh`、`MarchersInstanced`、`Lighting`、`viewMode` と ViewTab の切替（機能フラグ付き）、WebGL フォールバック                                  | 選択ページの隊形が 3D で正しく表示される（N-06）。外観が 2D と一致               |
+| **P2 再生**         | 3D の PositionSink、`useFrame` による更新、向き、停止中のトランジション、分割表示                                                                                  | 300 名で 60fps（N-01）。2D と 3D が同時に同期して動く                            |
+| **P3 カメラと UI**  | カメラプリセット、自由視点、追従、ラベル、経路、スタンド、ショートカット、i18n                                                                                     | 各プリセットがすべてのフィールドテンプレートで破綻しない。英語・日本語で UI 表示 |
+| **P4 動画書き出し** | `FrameRenderer` 抽象化、`Three3DFrameRenderer`、オーバーレイ合成、カメラ設定 UI、ベンチマーク                                                                      | 3D 動画が音声同期で書き出せる。同じ入力で同じ出力（N-05）。2D 書き出しの回帰なし |
+| **P5 将来**         | 3D 上の選択・ドラッグ編集（`worldToField` + レイキャスト）、プロップの 3D 化、人体モデルと歩行アニメーション、カメラキーフレームの保存、VR（WebXR）                | 個別に設計                                                                       |
 
 機能フラグ: P1〜P3 の間は `UiSettings` とは別に、設定画面の「実験的機能」トグル（またはビルド時フラグ）で 3D を隠し、安定後に既定で表示します。
 
@@ -886,7 +898,7 @@ pnpm --dir apps/desktop run e2e e2e/<3d-view-spec>.spec.ts
 
 | #   | 内容                                                                                                    | 決定の期限 |
 | --- | ------------------------------------------------------------------------------------------------------- | ---------- |
-| 1   | `rotation_degrees` の角度定義（0 度の向き・回転方向）が 2D 表示・書き出しとどう対応しているか           | P0         |
+| 1   | ~~`rotation_degrees` の角度定義~~ → P0 で決定済み（6.4 節）。2D は現在この値を使っていない              | 解決済み   |
 | 2   | 既存の CSS パースペクティブ（`FullscreenStore.perspective`）を 3D ビュー完成後に残すか、置き換えるか    | P3         |
 | 3   | フィールドテクスチャを「オフスクリーン `OpenMarchCanvas` 流用」にするか「専用の Canvas2D 描画」にするか | P1         |
 | 4   | 室内（インドア）フィールドテンプレートでのスタンド形状・カメラプリセットの調整                          | P3         |
