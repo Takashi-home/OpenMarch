@@ -344,6 +344,9 @@
         },
         "title": "フィールド"
     },
+    "field3d": {
+        "webglUnavailable": "WebGL を開始できないため、3D ビューを利用できません。ハードウェアアクセラレーションが無効になっている可能性があります。"
+    },
     "fieldProperties": {
         "applyFieldType": "フィールド タイプを適用",
         "applyFieldTypeWarning": "マーチャーは新しいフィールド タイプのサイズ に移動せず、キャンバス 上の元の位置に留まります。 フィールド タイプはいつでも戻すことができます。",
@@ -1027,6 +1030,7 @@
         "general.appearance.dark": "ダーク",
         "general.appearance.light": "ライト",
         "general.language": "言語",
+        "general.experimental3dView": "3D ビュー（実験的機能）",
         "general.showFullDatabasePath": "フル ファイル パスを表示",
         "mouse": "マウス ＆ トラックパッド",
         "mouse.panSensitivity": "パン 感度",
@@ -1156,7 +1160,11 @@
             "halfLines": "半分 の 線",
             "nextPaths": "次の パス",
             "previousPaths": "前の パス",
-            "uiSettingsToolbar": "UI 設定 ツールバー"
+            "uiSettingsToolbar": "UI 設定 ツールバー",
+            "viewMode": "表示モード",
+            "viewMode.2d": "2D",
+            "viewMode.3d": "3D",
+            "viewMode.split": "分割"
         }
     },
     "versionCheck": {

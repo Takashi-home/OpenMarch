@@ -1,6 +1,8 @@
 import { create } from "zustand";
 
 export type FocusableComponents = "canvas" | "timeline";
+/** Which field views are shown in the workspace */
+export type ViewMode = "2d" | "3d" | "split";
 export interface UiSettings {
     lockX: boolean;
     lockY: boolean;
@@ -50,6 +52,10 @@ export interface UiSettings {
     tolgeeDevTools?: boolean;
     /** Tolgee API Key for In-Context Translating */
     tolgeeApiKey?: string;
+    /** Whether the experimental 3D view can be turned on */
+    experimental3dView: boolean;
+    /** Which field views are shown (only used when the 3D view is enabled) */
+    viewMode: ViewMode;
 }
 
 // Default settings that will be used if no localStorage data exists
@@ -80,6 +86,8 @@ export const defaultSettings: UiSettings = {
         referencePointY: undefined,
     },
     tolgeeDevTools: false,
+    experimental3dView: false,
+    viewMode: "2d",
 };
 
 const STORAGE_KEY = "openmarch:uiSettings";

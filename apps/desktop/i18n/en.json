@@ -344,6 +344,9 @@
         },
         "title": "Field"
     },
+    "field3d": {
+        "webglUnavailable": "The 3D view is unavailable because WebGL could not start. Hardware acceleration may be turned off."
+    },
     "fieldProperties": {
         "applyFieldType": "Apply Field Type",
         "applyFieldTypeWarning": "Marchers will not move to the new field type size, they will stay where they are on the canvas. You can always change back the field type.",
@@ -1040,6 +1043,7 @@
         "general.appearance.dark": "Dark",
         "general.appearance.light": "Light",
         "general.language": "Language",
+        "general.experimental3dView": "3D view (experimental)",
         "general.showFullDatabasePath": "Show full file path",
         "mouse": "Mouse & Trackpad",
         "mouse.panSensitivity": "Pan sensitivity",
@@ -1173,7 +1177,11 @@
             "nextPaths": "Next paths",
             "previousPaths": "Previous paths",
             "stepSizeWarnings": "Step size warnings",
-            "uiSettingsToolbar": "Ui Settings Toolbar"
+            "uiSettingsToolbar": "Ui Settings Toolbar",
+            "viewMode": "View mode",
+            "viewMode.2d": "2D",
+            "viewMode.3d": "3D",
+            "viewMode.split": "Split"
         }
     },
     "versionCheck": {
