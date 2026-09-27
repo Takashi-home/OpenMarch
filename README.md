@@ -1,5 +1,7 @@
 # OpenMarch
 
+**English** | [日本語](README.ja.md)
+
 ![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/OpenMarch/OpenMarch/total)
 ![GitHub commit activity](https://img.shields.io/github/commit-activity/m/OpenMarch/OpenMarch)
 ![GitHub License](https://img.shields.io/github/license/OpenMarch/OpenMarch)
