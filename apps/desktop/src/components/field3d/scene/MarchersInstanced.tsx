@@ -35,12 +35,16 @@ function ShapeInstances({
     capacity,
     live,
     smoothPageTransition,
+    scale,
+    displayedPoses,
 }: {
     shape: MarcherShape3D;
     instances: readonly MarcherInstance[];
     capacity: number;
     live?: LiveMarcherPlayback;
     smoothPageTransition: boolean;
+    scale: number;
+    displayedPoses?: Map<number, MarcherPose>;
 }) {
     const meshRef = useRef<InstancedMesh>(null);
     const lastFrameRef = useRef<PositionFrame | null>(null);
@@ -69,7 +73,7 @@ function ShapeInstances({
     useLayoutEffect(() => {
         const mesh = meshRef.current;
         if (!mesh) return;
-        writeMarcherInstances(mesh, instances);
+        writeMarcherInstances(mesh, instances, scale);
         lastFrameRef.current = null;
 
         const shownPoses = shownPosesRef.current;
@@ -86,21 +90,43 @@ function ShapeInstances({
             instances.forEach((instance, index) => {
                 const from = shownPoses.get(instance.marcherId);
                 if (from)
-                    writeMarcherPose(mesh, index, from.x, from.z, from.yaw);
+                    writeMarcherPose(
+                        mesh,
+                        index,
+                        from.x,
+                        from.z,
+                        from.yaw,
+                        scale,
+                    );
             });
         } else {
             transitionRef.current = null;
         }
 
+        const transitionFrom = transitionRef.current?.from;
         shownPoses.clear();
-        for (const instance of instances)
-            shownPoses.set(instance.marcherId, {
+        for (const instance of instances) {
+            const pose = {
                 x: instance.x,
                 z: instance.z,
                 yaw: instance.yaw,
-            });
+            };
+            shownPoses.set(instance.marcherId, pose);
+            displayedPoses?.set(
+                instance.marcherId,
+                transitionFrom?.get(instance.marcherId) ?? pose,
+            );
+        }
         invalidate();
-    }, [instances, capacity, live, smoothPageTransition, invalidate]);
+    }, [
+        instances,
+        capacity,
+        live,
+        smoothPageTransition,
+        scale,
+        displayedPoses,
+        invalidate,
+    ]);
 
     // Paused page change: glide from the previous positions to the new page
     useFrame((_, deltaSeconds) => {
@@ -114,7 +140,8 @@ function ShapeInstances({
             const from = transition.from.get(instance.marcherId);
             if (!from) return;
             const pose = interpolatePose(from, instance, progress);
-            writeMarcherPose(mesh, index, pose.x, pose.z, pose.yaw);
+            writeMarcherPose(mesh, index, pose.x, pose.z, pose.yaw, scale);
+            displayedPoses?.set(instance.marcherId, pose);
         });
         mesh.instanceMatrix.needsUpdate = true;
 
@@ -142,8 +169,10 @@ function ShapeInstances({
                 instance.yaw,
                 deltaSeconds,
             );
-            writeMarcherPose(mesh, index, world.x, world.z, yaw);
-            shownPoses.set(instance.marcherId, { x: world.x, z: world.z, yaw });
+            writeMarcherPose(mesh, index, world.x, world.z, yaw, scale);
+            const pose = { x: world.x, z: world.z, yaw };
+            shownPoses.set(instance.marcherId, pose);
+            displayedPoses?.set(instance.marcherId, pose);
         });
         mesh.instanceMatrix.needsUpdate = true;
     });
@@ -166,6 +195,8 @@ export default function MarchersInstanced({
     capacity,
     live,
     smoothPageTransition = true,
+    scale = 1,
+    displayedPoses,
 }: {
     instancesByShape: MarcherInstancesByShape;
     /** Upper bound on marchers per shape; usually the total marcher count */
@@ -174,6 +205,13 @@ export default function MarchersInstanced({
     live?: LiveMarcherPlayback;
     /** Glide to new positions when the page changes while paused */
     smoothPageTransition?: boolean;
+    /** Marcher body size multiplier */
+    scale?: number;
+    /**
+     * Receives the pose currently drawn for each marcher (page, glide or live),
+     * for labels and the follow camera
+     */
+    displayedPoses?: Map<number, MarcherPose>;
 }) {
     return (
         <group>
@@ -185,6 +223,8 @@ export default function MarchersInstanced({
                     capacity={Math.max(capacity, 1)}
                     live={live}
                     smoothPageTransition={smoothPageTransition}
+                    scale={scale}
+                    displayedPoses={displayedPoses}
                 />
             ))}
         </group>

@@ -20,6 +20,9 @@ const languages = [
     { code: "ja", name: "日本語" },
 ];
 
+/** 3D view marcher size options (1 = about a person's size) */
+const MARCHER_SCALES = [0.5, 0.75, 1, 1.5, 2];
+
 // eslint-disable-next-line max-lines-per-function
 export default function GeneralSettings() {
     const { theme, setTheme } = useTheme();
@@ -144,6 +147,60 @@ export default function GeneralSettings() {
                     }
                 />
             </div>
+
+            {uiSettings.experimental3dView && (
+                <>
+                    <div className="flex h-[2.5rem] items-center justify-between px-8">
+                        <p className="text-body text-text-subtitle">
+                            <T keyName="settings.general.view3d.marcherScale" />
+                        </p>
+                        <Select
+                            value={String(uiSettings.view3d.marcherScale)}
+                            onValueChange={(value) =>
+                                setUiSettings({
+                                    ...uiSettings,
+                                    view3d: {
+                                        ...uiSettings.view3d,
+                                        marcherScale: Number(value),
+                                    },
+                                })
+                            }
+                        >
+                            <SelectTriggerButton
+                                label={`${Math.round(uiSettings.view3d.marcherScale * 100)}%`}
+                                className="min-w-[120px]"
+                            />
+                            <SelectContent>
+                                {MARCHER_SCALES.map((scale) => (
+                                    <SelectItem
+                                        key={scale}
+                                        value={String(scale)}
+                                    >
+                                        {`${scale * 100}%`}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <div className="flex h-[2.5rem] items-center justify-between px-8">
+                        <p className="text-body text-text-subtitle">
+                            <T keyName="settings.general.view3d.smoothPageTransition" />
+                        </p>
+                        <Switch
+                            checked={uiSettings.view3d.smoothPageTransition}
+                            onCheckedChange={(checked) =>
+                                setUiSettings({
+                                    ...uiSettings,
+                                    view3d: {
+                                        ...uiSettings.view3d,
+                                        smoothPageTransition: checked,
+                                    },
+                                })
+                            }
+                        />
+                    </div>
+                </>
+            )}
         </div>
     );
 }
