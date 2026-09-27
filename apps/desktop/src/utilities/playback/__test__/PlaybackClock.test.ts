@@ -150,4 +150,18 @@ describe("createFabricPositionSink", () => {
         expect(requestRenderAll).toHaveBeenCalledTimes(1);
         debug.mockRestore();
     });
+
+    it("moves marchers but skips the redraw while the canvas is hidden", () => {
+        const { canvas, canvasMarchers, requestRenderAll } = fakeCanvas([1]);
+        let visible = false;
+        const sink = createFabricPositionSink(canvas, () => visible);
+
+        expect(sink.apply(computePositionFrame(500, timelines))).toBe(true);
+        expect(canvasMarchers[0].setLiveCoordinates).toHaveBeenCalled();
+        expect(requestRenderAll).not.toHaveBeenCalled();
+
+        visible = true;
+        sink.apply(computePositionFrame(600, timelines));
+        expect(requestRenderAll).toHaveBeenCalledTimes(1);
+    });
 });

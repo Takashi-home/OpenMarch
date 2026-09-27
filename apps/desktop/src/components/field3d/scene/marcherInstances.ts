@@ -140,7 +140,26 @@ const scratchPosition = new Vector3();
 const scratchQuaternion = new Quaternion();
 const scratchEuler = new Euler();
 const scratchColor = new Color();
-const unitScale = new Vector3(1, 1, 1);
+const scratchScale = new Vector3();
+
+/**
+ * Sets one instance's transform: standing on the ground at (x, z), turned by
+ * `yaw`. Callers must set `mesh.instanceMatrix.needsUpdate` afterwards.
+ */
+export function writeMarcherPose(
+    mesh: InstancedMesh,
+    index: number,
+    x: number,
+    z: number,
+    yaw: number,
+    scale = 1,
+): void {
+    scratchPosition.set(x, 0, z);
+    scratchQuaternion.setFromEuler(scratchEuler.set(0, yaw, 0));
+    scratchScale.set(scale, scale, scale);
+    scratchMatrix.compose(scratchPosition, scratchQuaternion, scratchScale);
+    mesh.setMatrixAt(index, scratchMatrix);
+}
 
 /**
  * Writes instances into an InstancedMesh and flags the buffers for upload.
@@ -157,12 +176,15 @@ export function writeMarcherInstances(
             `InstancedMesh holds ${capacity} instances but ${instances.length} were given`,
         );
 
-    const scaleVector = unitScale.clone().multiplyScalar(scale);
     instances.forEach((instance, index) => {
-        scratchPosition.set(instance.x, 0, instance.z);
-        scratchQuaternion.setFromEuler(scratchEuler.set(0, instance.yaw, 0));
-        scratchMatrix.compose(scratchPosition, scratchQuaternion, scaleVector);
-        mesh.setMatrixAt(index, scratchMatrix);
+        writeMarcherPose(
+            mesh,
+            index,
+            instance.x,
+            instance.z,
+            instance.yaw,
+            scale,
+        );
         const { r, g, b } = instance.color;
         mesh.setColorAt(index, scratchColor.setRGB(r, g, b, SRGBColorSpace));
     });

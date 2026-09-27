@@ -6,9 +6,14 @@ import type { PositionSink } from "./PlaybackClock";
  *
  * Asks playback to stop when a marcher on the canvas has no position, which
  * happens at the end of the show or when its timeline is missing.
+ *
+ * @param shouldRender - Returns false while the canvas is hidden (e.g. in 3D
+ * view mode). Marchers still move so the canvas is current when shown again,
+ * but the redraw is skipped.
  */
 export function createFabricPositionSink(
     canvas: Pick<OpenMarchCanvas, "getCanvasMarchers" | "requestRenderAll">,
+    shouldRender: () => boolean = () => true,
 ): PositionSink {
     return {
         apply(frame) {
@@ -26,7 +31,7 @@ export function createFabricPositionSink(
                 }
             }
 
-            canvas.requestRenderAll();
+            if (shouldRender()) canvas.requestRenderAll();
             return shouldContinue;
         },
     };

@@ -3,6 +3,9 @@ import { useIsPlaying } from "@/context/IsPlayingContext";
 import OpenMarchCanvas from "@/global/classes/canvasObjects/OpenMarchCanvas";
 import { playbackClock } from "@/utilities/playback/PlaybackClock";
 import { createFabricPositionSink } from "@/utilities/playback/fabricPositionSink";
+import { getEffectiveViewMode } from "@/components/field3d/viewMode";
+import { useUiSettingsStore } from "@/stores/UiSettingsStore";
+import { useFullscreenStore } from "@/stores/FullscreenStore";
 import { getLivePlaybackPosition } from "@/components/timeline/audio/AudioPlayer";
 import { useTimingObjects } from "@/hooks";
 import { useSelectedPage } from "@/context/SelectedPageContext";
@@ -162,7 +165,15 @@ export const useAnimation = ({ canvas }: UseAnimationProps) => {
     // their own sinks on the same clock.
     useEffect(() => {
         if (!canvas) return;
-        return playbackClock.register(createFabricPositionSink(canvas));
+        // Skip redrawing the 2D canvas while the 3D view covers it
+        const canvasVisible = () =>
+            getEffectiveViewMode(
+                useUiSettingsStore.getState().uiSettings,
+                useFullscreenStore.getState().isFullscreen,
+            ) !== "3d";
+        return playbackClock.register(
+            createFabricPositionSink(canvas, canvasVisible),
+        );
     }, [canvas]);
 
     // Set marcher positions at a specific time
