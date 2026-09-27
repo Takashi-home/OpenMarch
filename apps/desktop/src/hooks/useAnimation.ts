@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { useIsPlaying } from "@/context/IsPlayingContext";
 import OpenMarchCanvas from "@/global/classes/canvasObjects/OpenMarchCanvas";
-import { getCoordinatesAtTime } from "@/utilities/Keyframes";
+import { playbackClock } from "@/utilities/playback/PlaybackClock";
+import { createFabricPositionSink } from "@/utilities/playback/fabricPositionSink";
 import { getLivePlaybackPosition } from "@/components/timeline/audio/AudioPlayer";
 import { useTimingObjects } from "@/hooks";
 import { useSelectedPage } from "@/context/SelectedPageContext";
@@ -157,36 +158,18 @@ export const useAnimation = ({ canvas }: UseAnimationProps) => {
         setCurrentCollision(selectedPage);
     }, [selectedPage, getCollisionsForSelectedPage, setCurrentCollision]);
 
+    // Draw playback frames on the 2D canvas. Other views (e.g. 3D) register
+    // their own sinks on the same clock.
+    useEffect(() => {
+        if (!canvas) return;
+        return playbackClock.register(createFabricPositionSink(canvas));
+    }, [canvas]);
+
     // Set marcher positions at a specific time
     const setMarcherPositionsAtTime = useCallback(
         (timeMilliseconds: number) => {
             if (!canvas) return;
-            let output = true;
-
-            const canvasMarchers = canvas.getCanvasMarchers();
-            for (const canvasMarcher of canvasMarchers) {
-                const timeline = marcherTimelines.get(
-                    canvasMarcher.marcherObj.id,
-                );
-
-                if (timeline) {
-                    // try {
-                    const coords = getCoordinatesAtTime(
-                        timeMilliseconds,
-                        timeline,
-                    );
-                    if (!coords) output = false;
-                    else canvasMarcher.setLiveCoordinates(coords);
-                } else {
-                    console.debug(
-                        `Marcher ${canvasMarcher.marcherObj.id} has no timeline at time ${timeMilliseconds}`,
-                    );
-                    output = false;
-                }
-            }
-
-            canvas.requestRenderAll();
-            return output;
+            return playbackClock.tick(timeMilliseconds, marcherTimelines);
         },
         [canvas, marcherTimelines],
     );
