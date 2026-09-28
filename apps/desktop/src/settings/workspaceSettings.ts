@@ -1,6 +1,33 @@
 import * as z from "zod";
 import { MIN_TEMPO_BPM } from "@/global/classes/Beat";
 
+const vector3Schema = z.tuple([z.number(), z.number(), z.number()]);
+
+/** A 3D view camera pose to pass through at a show time (milliseconds). */
+export const cameraKeyframeSchema = z.object({
+    id: z.string(),
+    timeMs: z.number().min(0),
+    pose: z.object({
+        position: vector3Schema,
+        target: vector3Schema,
+        fov: z.number().positive(),
+    }),
+});
+
+/**
+ * Camera keyframes for the 3D view. Broken entries are dropped one by one so a
+ * bad keyframe never discards the rest of the workspace settings.
+ */
+const cameraKeyframesSchema = z.preprocess(
+    (value) =>
+        Array.isArray(value)
+            ? value.filter(
+                  (item) => cameraKeyframeSchema.safeParse(item).success,
+              )
+            : undefined,
+    z.array(cameraKeyframeSchema).optional(),
+);
+
 export const workspaceSettingsSchema = z.object({
     defaultBeatsPerMeasure: z.int().positive().default(4),
     defaultTempo: z.float64().min(MIN_TEMPO_BPM).default(120),
@@ -18,6 +45,12 @@ export const workspaceSettingsSchema = z.object({
         (v) => (v === "" || v === undefined ? undefined : v),
         z.optional(z.coerce.number().int().positive()),
     ),
+
+    /**
+     * 3D view camera keyframes. Only `updateWorkspaceCameraKeyframes` changes
+     * them; other settings updates keep the stored value.
+     */
+    cameraKeyframes: cameraKeyframesSchema,
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;
