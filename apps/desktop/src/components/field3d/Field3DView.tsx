@@ -26,7 +26,10 @@ import { MAX_POLAR_ANGLE } from "./camera/cameraPresets";
 import CameraRig from "./camera/CameraRig";
 import CameraKeyframesPanel from "./camera/CameraKeyframesPanel";
 import { createCameraBridge } from "./camera/cameraBridge";
-import { useShowCameraKeyframes } from "./hooks/useShowKey";
+import {
+    useCameraKeyframes,
+    useMigrateLegacyCameraKeyframes,
+} from "./hooks/useCameraKeyframes";
 import { createDragPreviewStore } from "./edit/dragPreview";
 import MarcherEditController from "./edit/MarcherEditController";
 import SelectionRings from "./edit/SelectionRings";
@@ -98,7 +101,8 @@ export default function Field3DView() {
     const dragPreview = useMemo(() => createDragPreviewStore(), []);
     const cameraBridge = useMemo(() => createCameraBridge(), []);
     const vrBridge = useMemo(() => createVrBridge(), []);
-    const { keyframes, setKeyframes } = useShowCameraKeyframes();
+    const { keyframes, setKeyframes } = useCameraKeyframes();
+    useMigrateLegacyCameraKeyframes();
 
     // Saved (or refreshed) positions replace the drag preview
     useEffect(() => {

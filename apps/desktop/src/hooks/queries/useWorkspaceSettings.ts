@@ -7,8 +7,10 @@ import {
     updateWorkspaceSettingsParsed,
     updateWorkspaceSettingsJSON,
     getWorkspaceSettingsJSON,
+    updateWorkspaceCameraKeyframes,
+    WorkspaceCameraKeyframe,
 } from "@/db-functions/workspaceSettings";
-import { mutationOptions } from "@tanstack/react-query";
+import { mutationOptions, QueryClient } from "@tanstack/react-query";
 import { conToastError } from "@/utilities/utils";
 
 export const workspaceSettingsKeys = {
@@ -99,5 +101,44 @@ export const updateWorkspaceSettingsJSONMutationOptions = (queryClient: any) =>
         },
         onError: (error) => {
             conToastError("Failed to update workspace settings", error);
+        },
+    });
+
+/**
+ * Mutation options for replacing the 3D camera keyframes saved in the show.
+ * The cached settings update right away so the 3D view does not lag behind.
+ */
+export const updateCameraKeyframesMutationOptions = (
+    queryClient: QueryClient,
+) =>
+    mutationOptions({
+        mutationFn: async (keyframes: WorkspaceCameraKeyframe[]) =>
+            await updateWorkspaceCameraKeyframes({ db, keyframes }),
+        onMutate: async (keyframes) => {
+            await queryClient.cancelQueries({
+                queryKey: workspaceSettingsKeys.detail(),
+            });
+            const previous = queryClient.getQueryData<
+                z.infer<typeof workspaceSettingsSchema>
+            >(workspaceSettingsKeys.detail());
+            if (previous)
+                queryClient.setQueryData(workspaceSettingsKeys.detail(), {
+                    ...previous,
+                    cameraKeyframes: keyframes,
+                });
+            return { previous };
+        },
+        onError: (error, _keyframes, context) => {
+            if (context?.previous)
+                queryClient.setQueryData(
+                    workspaceSettingsKeys.detail(),
+                    context.previous,
+                );
+            conToastError("Failed to save camera keyframes", error);
+        },
+        onSettled: () => {
+            void queryClient.invalidateQueries({
+                queryKey: workspaceSettingsKeys.all(),
+            });
         },
     });

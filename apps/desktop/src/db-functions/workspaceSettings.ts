@@ -2,7 +2,41 @@ import { eq } from "drizzle-orm";
 import * as z from "zod";
 import { DbConnection, DbTransaction } from "./types";
 import { schema } from "@/global/database/db";
-import { workspaceSettingsSchema } from "@/settings/workspaceSettings";
+import {
+    cameraKeyframeSchema,
+    workspaceSettingsSchema,
+} from "@/settings/workspaceSettings";
+
+export type WorkspaceCameraKeyframe = z.infer<typeof cameraKeyframeSchema>;
+
+/** The camera keyframes stored in a workspace settings JSON string. */
+function storedCameraKeyframes(
+    jsonData: string | undefined,
+): WorkspaceCameraKeyframe[] | undefined {
+    if (!jsonData) return undefined;
+    try {
+        // Only the keyframes are checked, so an unrelated bad setting cannot lose them
+        const stored = (JSON.parse(jsonData) as { cameraKeyframes?: unknown })
+            ?.cameraKeyframes;
+        return workspaceSettingsSchema.shape.cameraKeyframes.parse(stored);
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * Sets the camera keyframes in a workspace settings JSON string, removing the
+ * key when there are none.
+ */
+function withCameraKeyframes(
+    jsonData: string,
+    keyframes: WorkspaceCameraKeyframe[] | undefined,
+): string {
+    const settings = JSON.parse(jsonData) as Record<string, unknown>;
+    if (keyframes && keyframes.length > 0) settings.cameraKeyframes = keyframes;
+    else delete settings.cameraKeyframes;
+    return JSON.stringify(settings);
+}
 
 export type DatabaseWorkspaceSettings =
     typeof schema.workspace_settings.$inferSelect;
@@ -33,22 +67,36 @@ export async function getWorkspaceSettings({
  * Updates the workspace settings record in the database.
  * Since there's only ever one workspace settings record, this updates the record with id = 1.
  * Note: This does NOT use history tracking (no undo/redo).
+ *
+ * Camera keyframes are kept as stored unless `cameraKeyframes` is given, so
+ * settings forms that do not know about them (or hold an older copy) never
+ * drop or roll them back.
  */
 export async function updateWorkspaceSettings({
     db,
     args,
+    cameraKeyframes,
 }: {
     db: DbConnection;
     args: ModifiedWorkspaceSettingsArgs;
+    /** New camera keyframes; leave out to keep the stored ones */
+    cameraKeyframes?: WorkspaceCameraKeyframe[];
 }): Promise<DatabaseWorkspaceSettings> {
     // Initialize the workspace settings record if it doesn't exist
     await initializeWorkspaceSettings({ db });
 
     return await db.transaction(async (tx: DbTransaction) => {
+        const current = await tx.query.workspace_settings.findFirst();
+        const jsonData = args.json_data ?? current?.json_data;
+        const keyframes =
+            cameraKeyframes ?? storedCameraKeyframes(current?.json_data);
         await tx
             .update(schema.workspace_settings)
             .set({
                 ...args,
+                ...(jsonData !== undefined
+                    ? { json_data: withCameraKeyframes(jsonData, keyframes) }
+                    : {}),
                 updated_at: new Date().toISOString(),
             })
             .where(eq(schema.workspace_settings.id, 1));
@@ -164,4 +212,24 @@ export async function updateWorkspaceSettingsParsed({
     });
 
     return validatedSettings;
+}
+
+/**
+ * Replaces the 3D view camera keyframes stored in the show file, leaving the
+ * other workspace settings as they are.
+ */
+export async function updateWorkspaceCameraKeyframes({
+    db,
+    keyframes,
+}: {
+    db: DbConnection;
+    keyframes: WorkspaceCameraKeyframe[];
+}): Promise<WorkspaceCameraKeyframe[]> {
+    const validated = z.array(cameraKeyframeSchema).parse(keyframes);
+    await updateWorkspaceSettings({
+        db,
+        args: {},
+        cameraKeyframes: validated,
+    });
+    return validated;
 }

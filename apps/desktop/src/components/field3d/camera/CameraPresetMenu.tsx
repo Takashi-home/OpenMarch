@@ -8,7 +8,7 @@ import { useTolgee } from "@tolgee/react";
 import { useSelectedMarchers } from "@/context/SelectedMarchersContext";
 import { CameraPresetId, useUiSettingsStore } from "@/stores/UiSettingsStore";
 import { FIXED_CAMERA_PRESETS } from "./cameraPresets";
-import { useShowCameraKeyframes } from "../hooks/useShowKey";
+import { useCameraKeyframes } from "../hooks/useCameraKeyframes";
 
 /** Presets offered in the menu, in order. "free" only appears as the current value. */
 export const MENU_CAMERA_PRESETS: readonly CameraPresetId[] = [
@@ -25,7 +25,7 @@ export default function CameraPresetMenu() {
     const { t } = useTolgee();
     const { uiSettings, setUiSettings } = useUiSettingsStore();
     const { selectedMarchers } = useSelectedMarchers()!;
-    const { keyframes } = useShowCameraKeyframes();
+    const { keyframes } = useCameraKeyframes();
     const current = uiSettings.view3d.cameraPreset;
 
     const choose = (preset: string) =>
