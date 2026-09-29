@@ -19,6 +19,7 @@
     },
     "scripts": {
         "dev": "pnpm run apply-styles && vite",
+        "dev:prod-api": "pnpm run apply-styles && vite --mode prod-api",
         "build": "pnpm run apply-styles && tsc && vite build",
         "build:electron": "pnpm run apply-styles && tsc && vite build && electron-builder --dir",
         "clean": "rimraf node_modules dist-electron release",

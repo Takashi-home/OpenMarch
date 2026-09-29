@@ -11,6 +11,16 @@
             "persistent": true,
             "cache": false
         },
+        "dev:prod-api": {
+            "with": [
+                "@openmarch/core#dev",
+                "@openmarch/musicxml-parser#dev",
+                "@openmarch/ui#dev",
+                "@openmarch/metronome#dev"
+            ],
+            "persistent": true,
+            "cache": false
+        },
         "build": {
             "dependsOn": ["^build"]
         }

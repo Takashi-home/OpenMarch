@@ -17,6 +17,16 @@ Optional (sign-in is disabled when either is unset):
 
 Set both in `.env` or `.env.production` to enable sign-in.
 
+`pnpm desktop dev` connects to the development backend (`.env.development`).
+To run the dev app against the production backend (for example, to publish to
+the OpenMarch - On the Move mobile app), use:
+
+```bash
+pnpm desktop dev:prod-api
+```
+
+This uses `.env.prod-api`. It talks to real production data, so use it with care.
+
 ## License
 
 OpenMarch is written under the [GPL-3.0 license](LICENSE).
