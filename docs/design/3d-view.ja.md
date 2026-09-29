@@ -4,6 +4,7 @@
 - 作成日: 2026-09-27
 - 対象パッケージ: `apps/desktop`（主）、`packages/core`（座標変換ユーティリティのみ、任意）
 - 技術スタック: three.js + React Three Fiber (R3F) + @react-three/drei
+- 実際の操作方法は [3d-view-guide.ja.md](./3d-view-guide.ja.md) を参照
 
 ---
 
