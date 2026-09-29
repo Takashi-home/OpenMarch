@@ -2,7 +2,7 @@ import { OPENMARCH_APP_BASE_URL } from "@/global/Constants";
 import { ArrowSquareOutIcon } from "@phosphor-icons/react";
 import { T } from "@tolgee/react";
 
-function openExternalUrl(url: string) {
+export function openExternalUrl(url: string) {
     if (window.electron?.openExternal) {
         void window.electron.openExternal(url);
     } else {

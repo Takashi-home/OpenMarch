@@ -230,8 +230,9 @@
             "nameRequired": "Enter a production name.",
             "title": "Create Production"
         },
+        "createOnWeb": "Open OpenMarch website",
         "createProduction": "Create production",
-        "empty": "No ensembles found. Create one above!",
+        "empty": "No ensembles found. Create one on the OpenMarch website.",
         "error": "Error loading ensembles",
         "loading": "Loading ensembles...",
         "nameHeader": "Name",

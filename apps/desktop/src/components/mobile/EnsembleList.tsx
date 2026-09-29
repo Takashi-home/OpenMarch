@@ -22,8 +22,15 @@ import {
     DialogTitle,
     Input,
 } from "@openmarch/ui";
-import { CircleNotchIcon, PlusIcon } from "@phosphor-icons/react";
-import ViewEnsembleDetailsLink from "./ViewEnsembleDetailsLink";
+import {
+    ArrowSquareOutIcon,
+    CircleNotchIcon,
+    PlusIcon,
+} from "@phosphor-icons/react";
+import { OPENMARCH_APP_BASE_URL } from "@/global/Constants";
+import ViewEnsembleDetailsLink, {
+    openExternalUrl,
+} from "./ViewEnsembleDetailsLink";
 
 type CreateProductionTarget = {
     id: number;
@@ -183,11 +190,27 @@ export default function EnsembleList() {
                     !error &&
                     ensemblesResponse?.ensembles &&
                     ensemblesResponse.ensembles.length === 0 && (
-                        <div className="text-body text-text/80">
-                            {t("ensembles.empty", {
-                                defaultValue:
-                                    "No ensembles found. Create one above!",
-                            })}
+                        <div className="flex flex-col items-start gap-12">
+                            <p className="text-body text-text/80">
+                                {t("ensembles.empty", {
+                                    defaultValue:
+                                        "No ensembles found. Create one on the OpenMarch website.",
+                                })}
+                            </p>
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="compact"
+                                onClick={() =>
+                                    openExternalUrl(OPENMARCH_APP_BASE_URL)
+                                }
+                                className="gap-8"
+                            >
+                                {t("ensembles.createOnWeb", {
+                                    defaultValue: "Open OpenMarch website",
+                                })}
+                                <ArrowSquareOutIcon size={16} />
+                            </Button>
                         </div>
                     )}
 

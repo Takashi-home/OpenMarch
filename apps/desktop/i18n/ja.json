@@ -230,8 +230,9 @@
             "nameRequired": "プロダクション名を入力してください",
             "title": "プロダクション を 作成"
         },
+        "createOnWeb": "OpenMarch のウェブサイトを開く",
         "createProduction": "プロダクションを作成",
-        "empty": "アンサンブルが見つかりません。上で作成してください！",
+        "empty": "アンサンブルが見つかりません。OpenMarch のウェブサイトで作成してください。",
         "error": "アンサンブルの読み込みに失敗しました",
         "loading": "アンサンブルを読み込み中...",
         "nameHeader": "名前",
