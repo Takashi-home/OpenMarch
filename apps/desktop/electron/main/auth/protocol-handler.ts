@@ -5,7 +5,7 @@
  */
 
 import { app, BrowserWindow } from "electron";
-import { join } from "node:path";
+import { resolve } from "node:path";
 import {
     PROTOCOL_SCHEME,
     AUTH_CALLBACK_PATH,
@@ -20,11 +20,14 @@ let callbackHandler: ((url: string) => void) | null = null;
  */
 export function registerProtocolHandler(): void {
     // In development mode with process.defaultApp, we need to pass
-    // the current script path to properly handle the protocol
+    // the current script path to properly handle the protocol.
+    // The path must be absolute: Windows launches the registered command from
+    // an unrelated working directory (e.g. C:\Windows\System32), so a relative
+    // "." (from `electron .`) would resolve to the wrong app.
     if (process.defaultApp) {
         if (process.argv.length >= 2) {
             app.setAsDefaultProtocolClient(PROTOCOL_SCHEME, process.execPath, [
-                join(process.argv[1]),
+                resolve(process.argv[1]),
             ]);
         }
     } else {
