@@ -66,6 +66,7 @@ import {
     createMarcherAccessories,
 } from "../scene/marcherAccessories";
 import type { MarcherInstancesByShape } from "../scene/marcherInstances";
+import { EquipmentMove, resolveEquipmentMoves } from "../scene/equipmentMoves";
 import type { MarcherModel3D } from "@/stores/UiSettingsStore";
 import { createExportAnimation, Export3DCamera } from "./exportAnimation";
 
@@ -81,6 +82,8 @@ export interface Video3DOptions {
     marcherModel: MarcherModel3D;
     /** Flags, rifles, drums and keyboards by section */
     showEquipment: boolean;
+    /** Tosses, spins and sweeps the flags and rifles perform */
+    equipmentMoves?: EquipmentMove[];
 }
 
 export interface Three3DFrameRendererArgs extends FrameRendererCommonArgs {
@@ -249,7 +252,15 @@ export async function createThree3DFrameRenderer(
                   }),
               )
             : null;
-    if (accessories) scene.add(accessories.object);
+    if (accessories) {
+        scene.add(accessories.object);
+        accessories.setMoves(
+            resolveEquipmentMoves(
+                options.showEquipment ? (options.equipmentMoves ?? []) : [],
+                args.sortedPages,
+            ),
+        );
+    }
     const sectionByMarcherId = new Map(
         args.marchers.map((marcher) => [marcher.id, marcher.section]),
     );
@@ -365,6 +376,7 @@ export async function createThree3DFrameRenderer(
                     frame.poses,
                     frameSeconds,
                     options.marcherScale,
+                    timeMs,
                 );
             }
 

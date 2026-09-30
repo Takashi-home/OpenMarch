@@ -1,6 +1,7 @@
 import { useEffect, useMemo } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
 import type { MarcherPose } from "../playback/livePlayback";
+import type { ResolvedEquipmentMove } from "./equipmentMoves";
 import {
     AccessoryMarcher,
     createMarcherAccessories,
@@ -18,6 +19,8 @@ export default function MarcherAccessoriesLayer({
     legs,
     equipment,
     castShadow,
+    moves,
+    getShowTimeMs,
 }: {
     marchers: readonly AccessoryMarcher[];
     capacity: number;
@@ -26,6 +29,10 @@ export default function MarcherAccessoriesLayer({
     legs: boolean;
     equipment: boolean;
     castShadow: boolean;
+    /** Tosses, spins and sweeps the equipment performs */
+    moves: readonly ResolvedEquipmentMove[];
+    /** The show time to pose equipment at, or undefined to keep it in its hold */
+    getShowTimeMs: () => number | undefined;
 }) {
     const invalidate = useThree((state) => state.invalidate);
     const accessories = useMemo(
@@ -40,9 +47,26 @@ export default function MarcherAccessoriesLayer({
         invalidate();
     }, [accessories, marchers, invalidate]);
 
+    useEffect(() => {
+        accessories.setMoves(moves);
+        invalidate();
+    }, [accessories, moves, invalidate]);
+
+    // A new time source (e.g. moving the preview) needs a redraw while paused
+    useEffect(() => {
+        invalidate();
+    }, [getShowTimeMs, invalidate]);
+
     useFrame((_, deltaSeconds) => {
         // Keep drawing while legs settle after marchers stop
-        if (accessories.update(displayedPoses, deltaSeconds, scale))
+        if (
+            accessories.update(
+                displayedPoses,
+                deltaSeconds,
+                scale,
+                getShowTimeMs(),
+            )
+        )
             invalidate();
     });
 

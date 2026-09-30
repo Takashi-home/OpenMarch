@@ -4,37 +4,54 @@ import { DbConnection, DbTransaction } from "./types";
 import { schema } from "@/global/database/db";
 import {
     cameraKeyframeSchema,
+    equipmentMoveSchema,
     workspaceSettingsSchema,
 } from "@/settings/workspaceSettings";
 
 export type WorkspaceCameraKeyframe = z.infer<typeof cameraKeyframeSchema>;
+export type WorkspaceEquipmentMove = z.infer<typeof equipmentMoveSchema>;
 
-/** The camera keyframes stored in a workspace settings JSON string. */
-function storedCameraKeyframes(
-    jsonData: string | undefined,
-): WorkspaceCameraKeyframe[] | undefined {
-    if (!jsonData) return undefined;
+/**
+ * Lists of show data kept in the workspace settings that only their own
+ * update functions change. Other settings saves carry the stored lists over.
+ */
+interface ShowData {
+    cameraKeyframes?: WorkspaceCameraKeyframe[];
+    equipmentMoves?: WorkspaceEquipmentMove[];
+}
+const SHOW_DATA_KEYS = ["cameraKeyframes", "equipmentMoves"] as const;
+
+/** The show data stored in a workspace settings JSON string. */
+function storedShowData(jsonData: string | undefined): ShowData {
+    if (!jsonData) return {};
     try {
-        // Only the keyframes are checked, so an unrelated bad setting cannot lose them
-        const stored = (JSON.parse(jsonData) as { cameraKeyframes?: unknown })
-            ?.cameraKeyframes;
-        return workspaceSettingsSchema.shape.cameraKeyframes.parse(stored);
+        // Each list is checked on its own, so an unrelated bad setting cannot lose them
+        const stored = JSON.parse(jsonData) as Record<string, unknown>;
+        return {
+            cameraKeyframes:
+                workspaceSettingsSchema.shape.cameraKeyframes.parse(
+                    stored?.cameraKeyframes,
+                ),
+            equipmentMoves: workspaceSettingsSchema.shape.equipmentMoves.parse(
+                stored?.equipmentMoves,
+            ),
+        };
     } catch {
-        return undefined;
+        return {};
     }
 }
 
 /**
- * Sets the camera keyframes in a workspace settings JSON string, removing the
- * key when there are none.
+ * Sets the show data in a workspace settings JSON string, removing each key
+ * when its list is empty.
  */
-function withCameraKeyframes(
-    jsonData: string,
-    keyframes: WorkspaceCameraKeyframe[] | undefined,
-): string {
+function withShowData(jsonData: string, data: ShowData): string {
     const settings = JSON.parse(jsonData) as Record<string, unknown>;
-    if (keyframes && keyframes.length > 0) settings.cameraKeyframes = keyframes;
-    else delete settings.cameraKeyframes;
+    for (const key of SHOW_DATA_KEYS) {
+        const list = data[key];
+        if (list && list.length > 0) settings[key] = list;
+        else delete settings[key];
+    }
     return JSON.stringify(settings);
 }
 
@@ -68,19 +85,22 @@ export async function getWorkspaceSettings({
  * Since there's only ever one workspace settings record, this updates the record with id = 1.
  * Note: This does NOT use history tracking (no undo/redo).
  *
- * Camera keyframes are kept as stored unless `cameraKeyframes` is given, so
- * settings forms that do not know about them (or hold an older copy) never
- * drop or roll them back.
+ * Camera keyframes and equipment moves are kept as stored unless
+ * `cameraKeyframes` or `equipmentMoves` is given, so settings forms that do not
+ * know about them (or hold an older copy) never drop or roll them back.
  */
 export async function updateWorkspaceSettings({
     db,
     args,
     cameraKeyframes,
+    equipmentMoves,
 }: {
     db: DbConnection;
     args: ModifiedWorkspaceSettingsArgs;
     /** New camera keyframes; leave out to keep the stored ones */
     cameraKeyframes?: WorkspaceCameraKeyframe[];
+    /** New equipment moves; leave out to keep the stored ones */
+    equipmentMoves?: WorkspaceEquipmentMove[];
 }): Promise<DatabaseWorkspaceSettings> {
     // Initialize the workspace settings record if it doesn't exist
     await initializeWorkspaceSettings({ db });
@@ -88,14 +108,17 @@ export async function updateWorkspaceSettings({
     return await db.transaction(async (tx: DbTransaction) => {
         const current = await tx.query.workspace_settings.findFirst();
         const jsonData = args.json_data ?? current?.json_data;
-        const keyframes =
-            cameraKeyframes ?? storedCameraKeyframes(current?.json_data);
+        const stored = storedShowData(current?.json_data);
+        const showData: ShowData = {
+            cameraKeyframes: cameraKeyframes ?? stored.cameraKeyframes,
+            equipmentMoves: equipmentMoves ?? stored.equipmentMoves,
+        };
         await tx
             .update(schema.workspace_settings)
             .set({
                 ...args,
                 ...(jsonData !== undefined
-                    ? { json_data: withCameraKeyframes(jsonData, keyframes) }
+                    ? { json_data: withShowData(jsonData, showData) }
                     : {}),
                 updated_at: new Date().toISOString(),
             })
@@ -230,6 +253,26 @@ export async function updateWorkspaceCameraKeyframes({
         db,
         args: {},
         cameraKeyframes: validated,
+    });
+    return validated;
+}
+
+/**
+ * Replaces the flag and rifle moves stored in the show file, leaving the other
+ * workspace settings as they are.
+ */
+export async function updateWorkspaceEquipmentMoves({
+    db,
+    moves,
+}: {
+    db: DbConnection;
+    moves: WorkspaceEquipmentMove[];
+}): Promise<WorkspaceEquipmentMove[]> {
+    const validated = z.array(equipmentMoveSchema).parse(moves);
+    await updateWorkspaceSettings({
+        db,
+        args: {},
+        equipmentMoves: validated,
     });
     return validated;
 }

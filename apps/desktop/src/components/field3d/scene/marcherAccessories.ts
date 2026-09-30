@@ -20,6 +20,8 @@ import {
     EquipmentPart,
     equipmentForSection,
 } from "./equipment";
+import { equipmentMotionMatrix } from "./equipmentMotion";
+import { findActiveMove, ResolvedEquipmentMove } from "./equipmentMoves";
 import { MARCHER_FIGURE } from "./marcherGeometry";
 import {
     Color3,
@@ -31,6 +33,8 @@ import { MARCHER_ROUGHNESS } from "./sceneStyle";
 /** A shown marcher, for the parts drawn around its body. */
 export interface AccessoryMarcher {
     marcherId: number;
+    /** The marcher's section, which equipment moves can be given to */
+    section: string;
     color: Color3;
     equipment: EquipmentKind | null;
 }
@@ -41,13 +45,15 @@ export function accessoryMarchers(
     sectionByMarcherId: ReadonlyMap<number, string>,
 ): AccessoryMarcher[] {
     return MARCHER_SHAPES_3D.flatMap((shape) =>
-        instancesByShape[shape].map((instance) => ({
-            marcherId: instance.marcherId,
-            color: instance.color,
-            equipment: equipmentForSection(
-                sectionByMarcherId.get(instance.marcherId) ?? "",
-            ),
-        })),
+        instancesByShape[shape].map((instance) => {
+            const section = sectionByMarcherId.get(instance.marcherId) ?? "";
+            return {
+                marcherId: instance.marcherId,
+                section,
+                color: instance.color,
+                equipment: equipmentForSection(section),
+            };
+        }),
     );
 }
 
@@ -56,15 +62,20 @@ export interface MarcherAccessories {
     readonly object: Group;
     /** Sets which marchers are shown, with their colors and equipment */
     setMarchers(marchers: readonly AccessoryMarcher[]): void;
+    /** Sets the tosses, spins and sweeps the equipment performs */
+    setMoves(moves: readonly ResolvedEquipmentMove[]): void;
     /**
      * Moves every part to its marcher's pose and advances the walk.
      *
+     * @param showTimeMs - Show time, to pose equipment that is mid-move;
+     *   without it equipment stays in its hold
      * @returns true while legs are still swinging (keep drawing frames)
      */
     update(
         poses: ReadonlyMap<number, MarcherPose>,
         deltaSeconds: number,
         scale: number,
+        showTimeMs?: number,
     ): boolean;
     dispose(): void;
 }
@@ -78,6 +89,8 @@ const scratchQuaternion = new Quaternion();
 const scratchEuler = new Euler();
 const scratchScale = new Vector3();
 const scratchColor = new Color();
+const scratchMotion = new Matrix4();
+const scratchEquipment = new Matrix4();
 
 function marcherMatrix(pose: MarcherPose, scale: number): Matrix4 {
     scratchPosition.set(pose.x, 0, pose.z);
@@ -163,7 +176,32 @@ export function createMarcherAccessories({
             : [];
 
     let shown: readonly AccessoryMarcher[] = [];
+    let moves: readonly ResolvedEquipmentMove[] = [];
     const legPivot = new Vector3();
+
+    /** Where the marcher's equipment is drawn: in the hold, or mid-move */
+    const equipmentMatrix = (
+        marcher: AccessoryMarcher,
+        base: Matrix4,
+        showTimeMs: number | undefined,
+    ): Matrix4 => {
+        if (
+            !marcher.equipment ||
+            moves.length === 0 ||
+            showTimeMs === undefined
+        )
+            return base;
+        const active = findActiveMove(moves, marcher, showTimeMs);
+        if (!active) return base;
+        const motion = equipmentMotionMatrix(
+            marcher.equipment,
+            active.move,
+            active.progress,
+            active.durationSeconds,
+            scratchMotion,
+        );
+        return motion ? scratchEquipment.multiplyMatrices(base, motion) : base;
+    };
 
     return {
         object,
@@ -183,7 +221,10 @@ export function createMarcherAccessories({
                 if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
             }
         },
-        update(poses, deltaSeconds, scale) {
+        setMoves(newMoves) {
+            moves = newMoves;
+        },
+        update(poses, deltaSeconds, scale, showTimeMs) {
             let legIndex = 0;
             const counts = equipmentMeshes.map(() => 0);
 
@@ -217,9 +258,10 @@ export function createMarcherAccessories({
                     legIndex++;
                 }
 
+                const held = equipmentMatrix(marcher, base, showTimeMs);
                 equipmentMeshes.forEach(({ part, mesh }, partIndex) => {
                     if (marcher.equipment !== part.kind) return;
-                    mesh.setMatrixAt(counts[partIndex]++, base);
+                    mesh.setMatrixAt(counts[partIndex]++, held);
                 });
             }
 

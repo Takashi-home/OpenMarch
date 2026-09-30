@@ -151,6 +151,99 @@ describe("createMarcherAccessories", () => {
         accessories.dispose();
     });
 
+    describe("equipment moves", () => {
+        const poses = new Map([
+            [1, { x: 0, z: 0, yaw: 0 }],
+            [2, { x: 5, z: 0, yaw: 0 }],
+        ]);
+        const toss = {
+            move: {
+                id: "t",
+                target: { kind: "section" as const, section: "Flag" },
+                pageId: 1,
+                startCount: 0,
+                lengthCounts: 4,
+                move: "toss" as const,
+                turns: 2,
+                direction: "cw" as const,
+            },
+            startMs: 0,
+            endMs: 2000,
+        };
+        // Without legs the meshes are: pole, silk, rifle, drum, keyboard
+        const setup = () => {
+            const accessories = createMarcherAccessories({
+                capacity: 2,
+                legs: false,
+                equipment: true,
+                castShadow: false,
+            });
+            accessories.setMarchers(marchers);
+            accessories.setMoves([toss]);
+            const pole = accessories.object.children[0] as InstancedMesh;
+            const poleHeight = () => {
+                const matrix = new Matrix4();
+                pole.getMatrixAt(0, matrix);
+                return new Vector3().setFromMatrixPosition(matrix).y;
+            };
+            return { accessories, poleHeight };
+        };
+
+        it("lifts a tossed flag at the peak and drops it back into the hold", () => {
+            const { accessories, poleHeight } = setup();
+            accessories.update(poses, 1 / 60, 1, 0);
+            const hold = poleHeight();
+            accessories.update(poses, 1 / 60, 1, 1000);
+            // Two seconds in the air peaks near 4.9 m; two whole turns end upright
+            expect(poleHeight() - hold).toBeCloseTo(4.905, 2);
+            accessories.update(poses, 1 / 60, 1, 2000);
+            expect(poleHeight()).toBeCloseTo(hold);
+            accessories.dispose();
+        });
+
+        it("keeps equipment in its hold when no show time is given", () => {
+            const { accessories, poleHeight } = setup();
+            accessories.update(poses, 1 / 60, 1);
+            const hold = poleHeight();
+            accessories.update(poses, 1 / 60, 1, 1000);
+            expect(poleHeight()).toBeGreaterThan(hold);
+            accessories.update(poses, 1 / 60, 1);
+            expect(poleHeight()).toBeCloseTo(hold);
+            accessories.dispose();
+        });
+
+        it("does not move equipment outside the move's section", () => {
+            const accessories = createMarcherAccessories({
+                capacity: 2,
+                legs: false,
+                equipment: true,
+                castShadow: false,
+            });
+            accessories.setMarchers(
+                accessoryMarchers(
+                    instances,
+                    new Map([
+                        [1, "Flag"],
+                        [2, "Rifle"],
+                    ]),
+                ),
+            );
+            accessories.setMoves([toss]);
+            const rifle = accessories.object.children[2] as InstancedMesh;
+            const rifleHeight = () => {
+                const matrix = new Matrix4();
+                rifle.getMatrixAt(0, matrix);
+                return new Vector3().setFromMatrixPosition(matrix).y;
+            };
+            accessories.update(poses, 1 / 60, 1);
+            const hold = rifleHeight();
+            accessories.update(poses, 1 / 60, 1, 1000);
+            expect(rifle.count).toBe(1);
+            expect(rifleHeight()).toBeCloseTo(hold);
+            accessories.dispose();
+        });
+    });
+
     it("skips legs for the simple model", () => {
         const accessories = createMarcherAccessories({
             capacity: 2,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls } from "@react-three/drei";
 import { invalidate } from "@react-three/fiber";
@@ -30,6 +30,14 @@ import {
     useCameraKeyframes,
     useMigrateLegacyCameraKeyframes,
 } from "./hooks/useCameraKeyframes";
+import { useEquipmentMoves } from "./hooks/useEquipmentMoves";
+import EquipmentMovesPanel, {
+    EquipmentPreview,
+} from "./equipment/EquipmentMovesPanel";
+import {
+    resolveEquipmentMoves,
+    timeAtMoveProgress,
+} from "./scene/equipmentMoves";
 import { createDragPreviewStore } from "./edit/dragPreview";
 import MarcherEditController from "./edit/MarcherEditController";
 import SelectionRings from "./edit/SelectionRings";
@@ -70,7 +78,7 @@ export default function Field3DView() {
     const queryClient = useQueryClient();
     const databaseReady = useDatabaseReady();
     const { pages } = useTimingObjects()!;
-    const { selectedPage } = useSelectedPage()!;
+    const { selectedPage, setSelectedPage } = useSelectedPage()!;
     const { selectedMarchers, setSelectedMarchers } = useSelectedMarchers()!;
     const { isPlaying } = useIsPlaying()!;
     const { uiSettings, setUiSettings } = useUiSettingsStore();
@@ -103,6 +111,18 @@ export default function Field3DView() {
     const vrBridge = useMemo(() => createVrBridge(), []);
     const { keyframes, setKeyframes } = useCameraKeyframes();
     useMigrateLegacyCameraKeyframes();
+    const { moves: equipmentMoves, setMoves: setEquipmentMoves } =
+        useEquipmentMoves();
+    const [equipmentPreview, setEquipmentPreview] =
+        useState<EquipmentPreview | null>(null);
+    const resolvedMoves = useMemo(
+        () => resolveEquipmentMoves(equipmentMoves, pages),
+        [equipmentMoves, pages],
+    );
+    // Previews are for a paused show; playing shows the moves as scheduled
+    useEffect(() => {
+        if (isPlaying) setEquipmentPreview(null);
+    }, [isPlaying]);
 
     // Saved (or refreshed) positions replace the drag preview
     useEffect(() => {
@@ -227,6 +247,21 @@ export default function Field3DView() {
         [isPlaying, livePositions, pageTimeMs],
     );
 
+    // Equipment moves run at the playback time. While paused, equipment stays in
+    // its hold unless a move is being previewed (a move can run past its page,
+    // and would otherwise look frozen mid-air at the page's end)
+    const equipmentTimeMs = useCallback((): number | undefined => {
+        if (isPlaying) return showTimeMs();
+        const previewed = equipmentPreview
+            ? resolvedMoves.find(
+                  (resolved) => resolved.move.id === equipmentPreview.moveId,
+              )
+            : undefined;
+        return previewed && equipmentPreview
+            ? timeAtMoveProgress(previewed, equipmentPreview.progress)
+            : undefined;
+    }, [isPlaying, equipmentPreview, resolvedMoves, showTimeMs]);
+
     const live = useMemo<LiveMarcherPlayback | undefined>(
         () =>
             isPlaying && fieldProperties
@@ -312,6 +347,8 @@ export default function Field3DView() {
                         legs={view3d.marcherModel === "figure"}
                         equipment={view3d.showEquipment}
                         castShadow={view3d.shadows}
+                        moves={resolvedMoves}
+                        getShowTimeMs={equipmentTimeMs}
                     />
                 )}
                 <SelectionRings
@@ -361,6 +398,17 @@ export default function Field3DView() {
                 onChange={setKeyframes}
                 bridge={cameraBridge}
                 showTimeMs={showTimeMs}
+            />
+            <EquipmentMovesPanel
+                moves={equipmentMoves}
+                onChange={setEquipmentMoves}
+                marchers={marchers ?? []}
+                pages={pages}
+                selectedPage={selectedPage}
+                selectedMarcherIds={selectedIds}
+                onSelectPage={(id) => setSelectedPage({ id })}
+                preview={equipmentPreview}
+                onPreviewChange={setEquipmentPreview}
             />
             <VrButton vrBridge={vrBridge} cameraBridge={cameraBridge} />
         </>

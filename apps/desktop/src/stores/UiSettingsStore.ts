@@ -38,6 +38,8 @@ export interface View3DSettings {
     showEquipment: boolean;
     /** Whether the camera keyframe panel is open */
     keyframePanelOpen: boolean;
+    /** Whether the flag and rifle moves panel is open */
+    equipmentPanelOpen: boolean;
 }
 
 export const defaultView3DSettings: View3DSettings = {
@@ -50,6 +52,7 @@ export const defaultView3DSettings: View3DSettings = {
     marcherModel: "figure",
     showEquipment: true,
     keyframePanelOpen: false,
+    equipmentPanelOpen: false,
 };
 export interface UiSettings {
     lockX: boolean;

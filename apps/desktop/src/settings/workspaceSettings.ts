@@ -1,5 +1,10 @@
 import * as z from "zod";
 import { MIN_TEMPO_BPM } from "@/global/classes/Beat";
+import {
+    EQUIPMENT_MOVE_KINDS,
+    MAX_MOVE_COUNTS,
+    MAX_MOVE_TURNS,
+} from "@/components/field3d/scene/equipmentMoves";
 
 const vector3Schema = z.tuple([z.number(), z.number(), z.number()]);
 
@@ -28,6 +33,35 @@ const cameraKeyframesSchema = z.preprocess(
     z.array(cameraKeyframeSchema).optional(),
 );
 
+/** A toss, spin or sweep for flags and rifles in the 3D view. */
+export const equipmentMoveSchema = z.object({
+    id: z.string(),
+    target: z.discriminatedUnion("kind", [
+        z.object({ kind: z.literal("section"), section: z.string().min(1) }),
+        z.object({ kind: z.literal("marcher"), marcherId: z.int() }),
+    ]),
+    pageId: z.int(),
+    startCount: z.number().min(0),
+    lengthCounts: z.number().positive().max(MAX_MOVE_COUNTS),
+    move: z.enum(EQUIPMENT_MOVE_KINDS),
+    turns: z.number().positive().max(MAX_MOVE_TURNS),
+    direction: z.enum(["cw", "ccw"]),
+});
+
+/**
+ * Equipment moves for the 3D view. Broken entries are dropped one by one so a
+ * bad move never discards the rest of the workspace settings.
+ */
+const equipmentMovesSchema = z.preprocess(
+    (value) =>
+        Array.isArray(value)
+            ? value.filter(
+                  (item) => equipmentMoveSchema.safeParse(item).success,
+              )
+            : undefined,
+    z.array(equipmentMoveSchema).optional(),
+);
+
 export const workspaceSettingsSchema = z.object({
     defaultBeatsPerMeasure: z.int().positive().default(4),
     defaultTempo: z.float64().min(MIN_TEMPO_BPM).default(120),
@@ -51,6 +85,13 @@ export const workspaceSettingsSchema = z.object({
      * them; other settings updates keep the stored value.
      */
     cameraKeyframes: cameraKeyframesSchema,
+
+    /**
+     * Tosses, spins and sweeps for flags and rifles in the 3D view. Only
+     * `updateWorkspaceEquipmentMoves` changes them; other settings updates keep
+     * the stored value.
+     */
+    equipmentMoves: equipmentMovesSchema,
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;

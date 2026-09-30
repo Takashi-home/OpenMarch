@@ -3,8 +3,10 @@ import {
     getWorkspaceSettingsJSON,
     getWorkspaceSettingsParsed,
     updateWorkspaceCameraKeyframes,
+    updateWorkspaceEquipmentMoves,
     updateWorkspaceSettingsJSON,
     updateWorkspaceSettingsParsed,
+    WorkspaceEquipmentMove,
 } from "../workspaceSettings";
 import { describeDbTests, schema } from "@/test/base";
 import { parseWorkspaceSettings } from "@/settings/workspaceSettings";
@@ -136,7 +138,155 @@ describeDbTests("workspaceSettings camera keyframes", (it) => {
     });
 });
 
+const equipmentMove = (id: string): WorkspaceEquipmentMove => ({
+    id,
+    target: { kind: "section", section: "Flag" },
+    pageId: 2,
+    startCount: 0,
+    lengthCounts: 4,
+    move: "toss",
+    turns: 2,
+    direction: "cw",
+});
+
+describeDbTests("workspaceSettings equipment moves", (it) => {
+    it("saves moves in the show file and reads them back", async ({ db }) => {
+        await updateWorkspaceEquipmentMoves({
+            db,
+            moves: [
+                equipmentMove("a"),
+                {
+                    ...equipmentMove("b"),
+                    target: { kind: "marcher", marcherId: 7 },
+                    move: "sweep",
+                },
+            ],
+        });
+
+        const settings = await getWorkspaceSettingsParsed({ db });
+        expect(settings.equipmentMoves?.map((m) => m.id)).toEqual(["a", "b"]);
+        expect(settings.equipmentMoves?.[1].target).toEqual({
+            kind: "marcher",
+            marcherId: 7,
+        });
+        expect(settings.defaultTempo).toBe(120);
+    });
+
+    it("keeps moves when other settings are saved without them", async ({
+        db,
+    }) => {
+        await updateWorkspaceEquipmentMoves({
+            db,
+            moves: [equipmentMove("a")],
+        });
+        const { equipmentMoves: _omitted, ...rest } =
+            await getWorkspaceSettingsParsed({ db });
+
+        await updateWorkspaceSettingsParsed({
+            db,
+            settings: { ...rest, projectName: "Finale" },
+        });
+
+        const settings = await getWorkspaceSettingsParsed({ db });
+        expect(settings.projectName).toBe("Finale");
+        expect(settings.equipmentMoves?.map((m) => m.id)).toEqual(["a"]);
+    });
+
+    it("does not roll moves back when a settings form holds an older copy", async ({
+        db,
+    }) => {
+        await updateWorkspaceEquipmentMoves({
+            db,
+            moves: [equipmentMove("old")],
+        });
+        const stale = await getWorkspaceSettingsParsed({ db });
+        await updateWorkspaceEquipmentMoves({
+            db,
+            moves: [equipmentMove("new")],
+        });
+
+        await updateWorkspaceSettingsParsed({
+            db,
+            settings: { ...stale, designer: "Kim" },
+        });
+
+        const settings = await getWorkspaceSettingsParsed({ db });
+        expect(settings.designer).toBe("Kim");
+        expect(settings.equipmentMoves?.map((m) => m.id)).toEqual(["new"]);
+    });
+
+    it("saving moves does not disturb the camera keyframes, and the reverse", async ({
+        db,
+    }) => {
+        await updateWorkspaceCameraKeyframes({
+            db,
+            keyframes: [keyframe("cam", 0)],
+        });
+        await updateWorkspaceEquipmentMoves({
+            db,
+            moves: [equipmentMove("a")],
+        });
+        await updateWorkspaceCameraKeyframes({
+            db,
+            keyframes: [keyframe("cam2", 500)],
+        });
+
+        const settings = await getWorkspaceSettingsParsed({ db });
+        expect(settings.cameraKeyframes?.map((k) => k.id)).toEqual(["cam2"]);
+        expect(settings.equipmentMoves?.map((m) => m.id)).toEqual(["a"]);
+    });
+
+    it("removes the key when every move is deleted", async ({ db }) => {
+        await updateWorkspaceEquipmentMoves({
+            db,
+            moves: [equipmentMove("a")],
+        });
+        await updateWorkspaceEquipmentMoves({ db, moves: [] });
+
+        const json = JSON.parse(await getWorkspaceSettingsJSON({ db }));
+        expect(json).not.toHaveProperty("equipmentMoves");
+    });
+
+    it("rejects malformed moves", async ({ db }) => {
+        await expect(
+            updateWorkspaceEquipmentMoves({
+                db,
+                moves: [{ ...equipmentMove("a"), lengthCounts: 0 }],
+            }),
+        ).rejects.toThrow();
+        await expect(
+            updateWorkspaceEquipmentMoves({
+                db,
+                moves: [{ ...equipmentMove("a"), turns: 99 }],
+            }),
+        ).rejects.toThrow();
+    });
+});
+
 describe("parseWorkspaceSettings", () => {
+    it("drops only broken moves and keeps the other settings", () => {
+        const settings = parseWorkspaceSettings(
+            JSON.stringify({
+                defaultTempo: 96,
+                equipmentMoves: [
+                    equipmentMove("good"),
+                    { ...equipmentMove("bad"), move: "juggle" },
+                    { id: "worse" },
+                ],
+            }),
+        );
+        expect(settings.defaultTempo).toBe(96);
+        expect(settings.equipmentMoves?.map((m) => m.id)).toEqual(["good"]);
+    });
+
+    it("ignores a moves value that is not a list", () => {
+        const settings = parseWorkspaceSettings(
+            JSON.stringify({ defaultTempo: 96, equipmentMoves: "oops" }),
+        );
+        expect(settings.defaultTempo).toBe(96);
+        expect(settings.equipmentMoves).toBeUndefined();
+    });
+
     it("drops only broken keyframes and keeps the other settings", () => {
         const settings = parseWorkspaceSettings(
             JSON.stringify({
