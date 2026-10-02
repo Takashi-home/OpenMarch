@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import { useFrame, useThree } from "@react-three/fiber";
-import { InstancedMesh, MeshStandardMaterial } from "three";
+import { InstancedMesh, Matrix4, MeshStandardMaterial } from "three";
 import type { FieldProperties } from "@openmarch/core";
 import type { PositionFrame } from "@/utilities/playback/PlaybackClock";
 import { fieldToWorld } from "../coords/fieldToWorld";
@@ -31,6 +31,10 @@ export interface LiveMarcherPlayback {
     fieldProperties: Pick<FieldProperties, "centerFrontPoint">;
 }
 
+const NO_HIDDEN: ReadonlySet<number> = new Set();
+/** Draws nothing: a body scaled to zero */
+const COLLAPSED = new Matrix4().makeScale(0, 0, 0);
+
 /** One InstancedMesh (one draw call) for every marcher with the same shape. */
 function ShapeInstances({
     shape,
@@ -42,6 +46,7 @@ function ShapeInstances({
     displayedPoses,
     dragPreview,
     model,
+    getHiddenMarcherIds,
 }: {
     shape: MarcherShape3D;
     instances: readonly MarcherInstance[];
@@ -52,6 +57,7 @@ function ShapeInstances({
     displayedPoses?: Map<number, MarcherPose>;
     dragPreview?: DragPreviewStore;
     model: MarcherModel3D;
+    getHiddenMarcherIds?: () => ReadonlySet<number>;
 }) {
     const meshRef = useRef<InstancedMesh>(null);
     const lastFrameRef = useRef<PositionFrame | null>(null);
@@ -216,6 +222,36 @@ function ShapeInstances({
         mesh.instanceMatrix.needsUpdate = true;
     });
 
+    // Marchers playing a motion clip are drawn as jointed figures elsewhere:
+    // collapse their body here, after every other update this frame
+    const hiddenRef = useRef<ReadonlySet<number>>(NO_HIDDEN);
+    useFrame(() => {
+        const mesh = meshRef.current;
+        if (!mesh) return;
+        const hidden = getHiddenMarcherIds?.() ?? NO_HIDDEN;
+        const wasHidden = hiddenRef.current;
+        if (hidden.size === 0 && wasHidden.size === 0) return;
+        hiddenRef.current = hidden;
+        instances.forEach((instance, index) => {
+            if (hidden.has(instance.marcherId)) {
+                mesh.setMatrixAt(index, COLLAPSED);
+                return;
+            }
+            // Shown again: put the body back where it was last drawn
+            const shown = shownPosesRef.current.get(instance.marcherId);
+            if (wasHidden.has(instance.marcherId) && shown)
+                writeMarcherPose(
+                    mesh,
+                    index,
+                    shown.x,
+                    shown.z,
+                    shown.yaw,
+                    scale,
+                );
+        });
+        mesh.instanceMatrix.needsUpdate = true;
+    });
+
     return (
         <instancedMesh
             // Recreate the mesh when the capacity grows (buffers are fixed-size)
@@ -239,6 +275,7 @@ export default function MarchersInstanced({
     displayedPoses,
     dragPreview,
     model = "simple",
+    getHiddenMarcherIds,
 }: {
     instancesByShape: MarcherInstancesByShape;
     /** Upper bound on marchers per shape; usually the total marcher count */
@@ -258,6 +295,8 @@ export default function MarchersInstanced({
     dragPreview?: DragPreviewStore;
     /** Marcher body style */
     model?: MarcherModel3D;
+    /** Marchers whose body is not drawn this frame (performing a motion clip) */
+    getHiddenMarcherIds?: () => ReadonlySet<number>;
 }) {
     return (
         <group>
@@ -273,6 +312,7 @@ export default function MarchersInstanced({
                     displayedPoses={displayedPoses}
                     dragPreview={dragPreview}
                     model={model}
+                    getHiddenMarcherIds={getHiddenMarcherIds}
                 />
             ))}
         </group>

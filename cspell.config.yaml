@@ -63,6 +63,7 @@ words:
   - frontmatter
   - Geral
   - GLHF
+  - gltf
   - hexdigest
   - Hipp
   - idioma
@@ -74,6 +75,8 @@ words:
   - lightridge
   - localappdata
   - Loudoun
+  - lowerarm
+  - lowerleg
   - Macbook's
   - madripoor
   - measurenb
@@ -83,6 +86,10 @@ words:
   - Meuli
   - midset
   - midsets
+  - Mixamo
+  - mixamorig
+  - Mocap
+  - Mocapy
   - monokai
   - Moulse
   - multiselection
@@ -115,7 +122,9 @@ words:
   - rels
   - recents
   - rgba
+  - rigify
   - ritardandos
+  - Rokoko
   - rootfile
   - rw-r
   - rwxr
@@ -124,6 +133,7 @@ words:
   - Schachner
   - Segoe
   - seti
+  - shldr
   - shouldn
   - sicommand
   - signtool
@@ -131,6 +141,7 @@ words:
   - skeuo
   - skiplink
   - skyrim
+  - slerp
   - snapcraft
   - sonner
   - soundsport
@@ -143,6 +154,7 @@ words:
   - tabler
   - Tamagui
   - Titlebar
+  - toebase
   - togglefullscreen
   - toks
   - tolgee
@@ -161,6 +173,9 @@ words:
   - unmaximize
   - unpreview
   - unstub
+  - upleg
+  - upperarm
+  - upperleg
   - uuidv
   - vertaal
   - viewbox

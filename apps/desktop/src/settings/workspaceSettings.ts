@@ -5,6 +5,11 @@ import {
     MAX_MOVE_COUNTS,
     MAX_MOVE_TURNS,
 } from "@/components/field3d/scene/equipmentMoves";
+import {
+    MAX_CLIP_FRAMES,
+    MAX_CLIPS,
+} from "@/components/field3d/motion/motionClip";
+import { MAX_CUE_COUNTS } from "@/components/field3d/motion/motionCues";
 
 const vector3Schema = z.tuple([z.number(), z.number(), z.number()]);
 
@@ -62,6 +67,44 @@ const equipmentMovesSchema = z.preprocess(
     z.array(equipmentMoveSchema).optional(),
 );
 
+/** A performer's motion imported from a motion capture or animation file. */
+export const motionClipSchema = z.object({
+    id: z.string(),
+    name: z.string(),
+    fps: z.number().positive(),
+    frameCount: z.int().min(1).max(MAX_CLIP_FRAMES),
+    // Base64 of 16-bit joint positions; see `encodeMotionFrames`
+    data: z.string().regex(/^[A-Za-z0-9+/]*={0,2}$/),
+});
+
+/** When a marcher (or section) performs a motion clip. */
+export const motionCueSchema = z.object({
+    id: z.string(),
+    clipId: z.string(),
+    target: equipmentMoveSchema.shape.target,
+    pageId: z.int(),
+    startCount: z.number().min(0),
+    lengthCounts: z.number().positive().max(MAX_CUE_COUNTS),
+    mirror: z.boolean(),
+    propHand: z.enum(["left", "right"]),
+});
+
+/**
+ * A list kept in the workspace settings whose broken entries are dropped one
+ * by one, so a bad entry never discards the rest of the workspace settings.
+ */
+function tolerantList<T extends z.ZodType>(item: T, max?: number) {
+    return z.preprocess(
+        (value) =>
+            Array.isArray(value)
+                ? value
+                      .filter((entry) => item.safeParse(entry).success)
+                      .slice(0, max)
+                : undefined,
+        z.array(item).optional(),
+    );
+}
+
 export const workspaceSettingsSchema = z.object({
     defaultBeatsPerMeasure: z.int().positive().default(4),
     defaultTempo: z.float64().min(MIN_TEMPO_BPM).default(120),
@@ -92,6 +135,14 @@ export const workspaceSettingsSchema = z.object({
      * the stored value.
      */
     equipmentMoves: equipmentMovesSchema,
+
+    /**
+     * Performer motions (from motion capture files) and when marchers perform
+     * them in the 3D view. Only `updateWorkspaceMotion` changes them; other
+     * settings updates keep the stored values.
+     */
+    motionClips: tolerantList(motionClipSchema, MAX_CLIPS),
+    motionCues: tolerantList(motionCueSchema),
 });
 
 export type WorkspaceSettings = z.infer<typeof workspaceSettingsSchema>;

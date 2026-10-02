@@ -70,7 +70,8 @@ export function draftFromMove(move: EquipmentMove): EquipmentMoveDraft {
     };
 }
 
-function targetsOf(
+/** The targets a target choice stands for. */
+export function targetsOf(
     choice: string,
     selectedMarcherIds: readonly number[],
 ): EquipmentMoveTarget[] {
@@ -92,7 +93,7 @@ function targetsOf(
     return [];
 }
 
-const parseNumber = (text: string) =>
+export const parseNumber = (text: string) =>
     text.trim() === "" ? Number.NaN : Number(text);
 
 /**
@@ -144,11 +145,11 @@ export function movesFromDraft(
  * Puts `changed` where the move with `replacingId` was (later moves take
  * priority, so keeping the place matters), or at the end when adding.
  */
-export function withMoves(
-    moves: readonly EquipmentMove[],
-    changed: readonly EquipmentMove[],
+export function withMoves<T extends { id: string }>(
+    moves: readonly T[],
+    changed: readonly T[],
     replacingId?: string,
-): EquipmentMove[] {
+): T[] {
     const index = replacingId
         ? moves.findIndex((move) => move.id === replacingId)
         : -1;

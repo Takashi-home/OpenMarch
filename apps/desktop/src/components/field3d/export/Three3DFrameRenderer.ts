@@ -62,12 +62,15 @@ import {
     SURROUNDING_GROUND_MARGIN,
 } from "../scene/sceneStyle";
 import {
+    AccessoryMarcher,
     accessoryMarchers,
     createMarcherAccessories,
 } from "../scene/marcherAccessories";
 import type { MarcherInstancesByShape } from "../scene/marcherInstances";
 import { EquipmentMove, resolveEquipmentMoves } from "../scene/equipmentMoves";
 import type { MarcherModel3D } from "@/stores/UiSettingsStore";
+import { decodeMotionClips, MotionClip } from "../motion/motionClip";
+import { MotionCue, performingMarcherIds } from "../motion/motionCues";
 import { createExportAnimation, Export3DCamera } from "./exportAnimation";
 
 /** Options for rendering the show in 3D. */
@@ -84,6 +87,10 @@ export interface Video3DOptions {
     showEquipment: boolean;
     /** Tosses, spins and sweeps the flags and rifles perform */
     equipmentMoves?: EquipmentMove[];
+    /** Performer motions imported from motion capture files */
+    motionClips?: MotionClip[];
+    /** When marchers perform the motion clips */
+    motionCues?: MotionCue[];
 }
 
 export interface Three3DFrameRendererArgs extends FrameRendererCommonArgs {
@@ -240,14 +247,24 @@ export async function createThree3DFrameRenderer(
         meshes.set(shape, mesh);
     }
 
-    // Walking legs and section equipment
+    // Performer motions: the same clips and cues as the on-screen view
+    const motionClips = decodeMotionClips(options.motionClips ?? []);
+    const motionCues = resolveEquipmentMoves(
+        options.motionCues ?? [],
+        args.sortedPages,
+    );
+
+    // Walking legs, section equipment and performers
     const accessories =
-        options.marcherModel === "figure" || options.showEquipment
+        options.marcherModel === "figure" ||
+        options.showEquipment ||
+        motionCues.length > 0
             ? track(
                   createMarcherAccessories({
                       capacity,
                       legs: options.marcherModel === "figure",
                       equipment: options.showEquipment,
+                      performers: motionCues.length > 0,
                       castShadow: options.shadows,
                   }),
               )
@@ -260,11 +277,25 @@ export async function createThree3DFrameRenderer(
                 args.sortedPages,
             ),
         );
+        accessories.setMotion(motionCues, motionClips);
     }
     const sectionByMarcherId = new Map(
         args.marchers.map((marcher) => [marcher.id, marcher.section]),
     );
-    let accessoriesFor: MarcherInstancesByShape | null = null;
+    let shownFor: MarcherInstancesByShape | null = null;
+    let shownMarchers: AccessoryMarcher[] = [];
+    /** The marchers on the frame's page; recomputed when the page changes */
+    const marchersShownIn = (instancesByShape: MarcherInstancesByShape) => {
+        if (shownFor !== instancesByShape) {
+            shownFor = instancesByShape;
+            shownMarchers = accessoryMarchers(
+                instancesByShape,
+                sectionByMarcherId,
+            );
+            accessories?.setMarchers(shownMarchers);
+        }
+        return shownMarchers;
+    };
 
     // Labels
     const labelColor = rgbCss(fieldProperties.theme.defaultMarcher.label);
@@ -332,6 +363,13 @@ export async function createThree3DFrameRenderer(
                 args.durationSeconds * 1000 - 1,
             );
             const frame = animation.frameAt(timeMs, frameSeconds);
+            // Performers are drawn as jointed figures instead of their body
+            const performing = performingMarcherIds(
+                motionCues,
+                motionClips,
+                marchersShownIn(frame.instancesByShape),
+                timeMs,
+            );
 
             for (const shape of MARCHER_SHAPES_3D) {
                 const mesh = meshes.get(shape)!;
@@ -339,7 +377,7 @@ export async function createThree3DFrameRenderer(
                 const shown: MarcherInstance[] = frame.instancesByShape[shape];
                 for (const instance of shown) {
                     const pose = frame.poses.get(instance.marcherId);
-                    if (!pose) continue;
+                    if (!pose || performing.has(instance.marcherId)) continue;
                     writeMarcherPose(
                         mesh,
                         index,
@@ -363,15 +401,7 @@ export async function createThree3DFrameRenderer(
 
             if (accessories) {
                 // The shown marchers and their colors change with the page
-                if (accessoriesFor !== frame.instancesByShape) {
-                    accessoriesFor = frame.instancesByShape;
-                    accessories.setMarchers(
-                        accessoryMarchers(
-                            frame.instancesByShape,
-                            sectionByMarcherId,
-                        ),
-                    );
-                }
+                // (already set for this frame by `marchersShownIn`)
                 accessories.update(
                     frame.poses,
                     frameSeconds,

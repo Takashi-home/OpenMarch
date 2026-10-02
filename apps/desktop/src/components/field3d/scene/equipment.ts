@@ -51,7 +51,16 @@ export interface EquipmentRig {
     grip: RigPoint;
     /** The balance point: a tossed piece turns about this point in the air */
     centerOfMass: RigPoint;
+    /** Unit vector along the pole or barrel, from the butt to the tip */
+    axis: RigPoint;
+    /**
+     * Where the grip sits when held in both hands (a performer's motion clip):
+     * at the bottom hand (a flag), or between the hands (a rifle)
+     */
+    twoHandGrip: "bottom" | "middle";
 }
+
+const RIFLE_TILT = Math.PI / 5;
 
 const EQUIPMENT_RIGS: Partial<Record<EquipmentKind, EquipmentRig>> = {
     flag: {
@@ -62,11 +71,16 @@ const EQUIPMENT_RIGS: Partial<Record<EquipmentKind, EquipmentRig>> = {
             FLAG_HAND.y + FLAG_POLE_HEIGHT * 0.55,
             0,
         ],
+        axis: [0, 1, 0],
+        twoHandGrip: "bottom",
     },
     rifle: {
         // Gripped at its middle, so a spin and a toss turn about the same point
         grip: [0, 1.2, 0.2],
         centerOfMass: [0, 1.2, 0.2],
+        // Tilted across the chest (see the rifle geometry below)
+        axis: [Math.sin(RIFLE_TILT), Math.cos(RIFLE_TILT), 0],
+        twoHandGrip: "middle",
     },
 };
 
@@ -111,7 +125,7 @@ export const EQUIPMENT_PARTS: readonly EquipmentPart[] = [
         createGeometry: () => {
             // Carried at port arms: diagonally across the chest
             const rifle = new BoxGeometry(0.05, 0.95, 0.06);
-            rifle.rotateZ(-Math.PI / 5);
+            rifle.rotateZ(-RIFLE_TILT);
             rifle.translate(0, 1.2, 0.2);
             return rifle;
         },

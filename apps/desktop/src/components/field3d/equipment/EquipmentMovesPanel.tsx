@@ -65,7 +65,14 @@ export default function EquipmentMovesPanel({
     const setOpen = (equipmentPanelOpen: boolean) =>
         setUiSettings({
             ...uiSettings,
-            view3d: { ...view3d, equipmentPanelOpen },
+            view3d: {
+                ...view3d,
+                equipmentPanelOpen,
+                // Both panels sit in the same corner
+                motionPanelOpen: equipmentPanelOpen
+                    ? false
+                    : view3d.motionPanelOpen,
+            },
         });
 
     const movable = useMemo(() => movableMarchers(marchers), [marchers]);

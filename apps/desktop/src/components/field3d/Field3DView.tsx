@@ -31,6 +31,10 @@ import {
     useMigrateLegacyCameraKeyframes,
 } from "./hooks/useCameraKeyframes";
 import { useEquipmentMoves } from "./hooks/useEquipmentMoves";
+import { useMotion } from "./hooks/useMotion";
+import MotionPanel, { MotionPreview } from "./motion/MotionPanel";
+import { decodeMotionClips } from "./motion/motionClip";
+import { performingMarcherIds } from "./motion/motionCues";
 import EquipmentMovesPanel, {
     EquipmentPreview,
 } from "./equipment/EquipmentMovesPanel";
@@ -119,9 +123,36 @@ export default function Field3DView() {
         () => resolveEquipmentMoves(equipmentMoves, pages),
         [equipmentMoves, pages],
     );
+    const { clips: motionClips, cues: motionCues, setMotion } = useMotion();
+    const motion = useMemo(
+        () => ({ clips: motionClips, cues: motionCues }),
+        [motionClips, motionCues],
+    );
+    const decodedClips = useMemo(
+        () => decodeMotionClips(motionClips),
+        [motionClips],
+    );
+    const resolvedCues = useMemo(
+        () => resolveEquipmentMoves(motionCues, pages),
+        [motionCues, pages],
+    );
+    const [motionPreview, setMotionPreview] = useState<MotionPreview | null>(
+        null,
+    );
+    // One preview at a time: the equipment and motion previews share the clock
+    const previewEquipment = useCallback((preview: EquipmentPreview | null) => {
+        setEquipmentPreview(preview);
+        if (preview) setMotionPreview(null);
+    }, []);
+    const previewMotion = useCallback((preview: MotionPreview | null) => {
+        setMotionPreview(preview);
+        if (preview) setEquipmentPreview(null);
+    }, []);
     // Previews are for a paused show; playing shows the moves as scheduled
     useEffect(() => {
-        if (isPlaying) setEquipmentPreview(null);
+        if (!isPlaying) return;
+        setEquipmentPreview(null);
+        setMotionPreview(null);
     }, [isPlaying]);
 
     // Saved (or refreshed) positions replace the drag preview
@@ -247,20 +278,55 @@ export default function Field3DView() {
         [isPlaying, livePositions, pageTimeMs],
     );
 
-    // Equipment moves run at the playback time. While paused, equipment stays in
-    // its hold unless a move is being previewed (a move can run past its page,
-    // and would otherwise look frozen mid-air at the page's end)
-    const equipmentTimeMs = useCallback((): number | undefined => {
+    // Equipment moves and performer motions run at the playback time. While
+    // paused, everyone stands in their usual hold unless a move or cue is being
+    // previewed (a move can run past its page, and would otherwise look frozen
+    // mid-air at the page's end)
+    const performanceTimeMs = useCallback((): number | undefined => {
         if (isPlaying) return showTimeMs();
-        const previewed = equipmentPreview
+        const previewedMove = equipmentPreview
             ? resolvedMoves.find(
                   (resolved) => resolved.move.id === equipmentPreview.moveId,
               )
             : undefined;
-        return previewed && equipmentPreview
-            ? timeAtMoveProgress(previewed, equipmentPreview.progress)
+        if (previewedMove && equipmentPreview)
+            return timeAtMoveProgress(previewedMove, equipmentPreview.progress);
+        const previewedCue = motionPreview
+            ? resolvedCues.find(
+                  (resolved) => resolved.move.id === motionPreview.cueId,
+              )
             : undefined;
-    }, [isPlaying, equipmentPreview, resolvedMoves, showTimeMs]);
+        return previewedCue && motionPreview
+            ? timeAtMoveProgress(previewedCue, motionPreview.progress)
+            : undefined;
+    }, [
+        isPlaying,
+        equipmentPreview,
+        resolvedMoves,
+        motionPreview,
+        resolvedCues,
+        showTimeMs,
+    ]);
+
+    // Marchers mid-performance are drawn as jointed figures, not their body.
+    // Worked out once per show time, though each body shape asks for it
+    const getPerformingMarcherIds = useMemo(() => {
+        let lastTime: number | undefined;
+        let lastIds: ReadonlySet<number> = new Set();
+        return () => {
+            const time = performanceTimeMs();
+            if (time !== lastTime) {
+                lastTime = time;
+                lastIds = performingMarcherIds(
+                    resolvedCues,
+                    decodedClips,
+                    accessories,
+                    time,
+                );
+            }
+            return lastIds;
+        };
+    }, [performanceTimeMs, resolvedCues, decodedClips, accessories]);
 
     const live = useMemo<LiveMarcherPlayback | undefined>(
         () =>
@@ -336,9 +402,16 @@ export default function Field3DView() {
                         displayedPoses={displayedPoses}
                         dragPreview={dragPreview}
                         model={view3d.marcherModel}
+                        getHiddenMarcherIds={
+                            resolvedCues.length > 0
+                                ? getPerformingMarcherIds
+                                : undefined
+                        }
                     />
                 )}
-                {(view3d.marcherModel === "figure" || view3d.showEquipment) && (
+                {(view3d.marcherModel === "figure" ||
+                    view3d.showEquipment ||
+                    resolvedCues.length > 0) && (
                     <MarcherAccessoriesLayer
                         marchers={accessories}
                         capacity={marchers?.length ?? 0}
@@ -348,7 +421,9 @@ export default function Field3DView() {
                         equipment={view3d.showEquipment}
                         castShadow={view3d.shadows}
                         moves={resolvedMoves}
-                        getShowTimeMs={equipmentTimeMs}
+                        cues={resolvedCues}
+                        clips={decodedClips}
+                        getShowTimeMs={performanceTimeMs}
                     />
                 )}
                 <SelectionRings
@@ -408,7 +483,18 @@ export default function Field3DView() {
                 selectedMarcherIds={selectedIds}
                 onSelectPage={(id) => setSelectedPage({ id })}
                 preview={equipmentPreview}
-                onPreviewChange={setEquipmentPreview}
+                onPreviewChange={previewEquipment}
+            />
+            <MotionPanel
+                motion={motion}
+                onChange={setMotion}
+                marchers={marchers ?? []}
+                pages={pages}
+                selectedPage={selectedPage}
+                selectedMarcherIds={selectedIds}
+                onSelectPage={(id) => setSelectedPage({ id })}
+                preview={motionPreview}
+                onPreviewChange={previewMotion}
             />
             <VrButton vrBridge={vrBridge} cameraBridge={cameraBridge} />
         </>

@@ -4,9 +4,12 @@ import {
     getWorkspaceSettingsParsed,
     updateWorkspaceCameraKeyframes,
     updateWorkspaceEquipmentMoves,
+    updateWorkspaceMotion,
     updateWorkspaceSettingsJSON,
     updateWorkspaceSettingsParsed,
     WorkspaceEquipmentMove,
+    WorkspaceMotionClip,
+    WorkspaceMotionCue,
 } from "../workspaceSettings";
 import { describeDbTests, schema } from "@/test/base";
 import { parseWorkspaceSettings } from "@/settings/workspaceSettings";
@@ -263,7 +266,152 @@ describeDbTests("workspaceSettings equipment moves", (it) => {
     });
 });
 
+const motionClip = (id: string): WorkspaceMotionClip => ({
+    id,
+    name: `${id}.bvh`,
+    fps: 30,
+    frameCount: 1,
+    data: "AAAA",
+});
+
+const motionCue = (id: string, clipId: string): WorkspaceMotionCue => ({
+    id,
+    clipId,
+    target: { kind: "section", section: "Color Guard" },
+    pageId: 2,
+    startCount: 4,
+    lengthCounts: 16,
+    mirror: false,
+    propHand: "left",
+});
+
+describeDbTests("workspaceSettings performer motions", (it) => {
+    it("saves clips and cues in the show file and reads them back", async ({
+        db,
+    }) => {
+        await updateWorkspaceMotion({
+            db,
+            motion: {
+                clips: [motionClip("solo")],
+                cues: [motionCue("q1", "solo")],
+            },
+        });
+
+        const settings = await getWorkspaceSettingsParsed({ db });
+        expect(settings.motionClips?.map((c) => c.id)).toEqual(["solo"]);
+        expect(settings.motionCues?.[0]).toMatchObject({
+            clipId: "solo",
+            startCount: 4,
+            propHand: "left",
+        });
+        expect(settings.defaultTempo).toBe(120);
+    });
+
+    it("keeps motions when other settings are saved without them", async ({
+        db,
+    }) => {
+        await updateWorkspaceMotion({
+            db,
+            motion: {
+                clips: [motionClip("solo")],
+                cues: [motionCue("q1", "solo")],
+            },
+        });
+        const {
+            motionClips: _clips,
+            motionCues: _cues,
+            ...rest
+        } = await getWorkspaceSettingsParsed({ db });
+
+        await updateWorkspaceSettingsParsed({
+            db,
+            settings: { ...rest, projectName: "Finale" },
+        });
+
+        const settings = await getWorkspaceSettingsParsed({ db });
+        expect(settings.projectName).toBe("Finale");
+        expect(settings.motionClips?.map((c) => c.id)).toEqual(["solo"]);
+        expect(settings.motionCues?.map((c) => c.id)).toEqual(["q1"]);
+    });
+
+    it("does not disturb equipment moves or camera keyframes", async ({
+        db,
+    }) => {
+        await updateWorkspaceEquipmentMoves({
+            db,
+            moves: [equipmentMove("a")],
+        });
+        await updateWorkspaceCameraKeyframes({
+            db,
+            keyframes: [keyframe("cam", 0)],
+        });
+        await updateWorkspaceMotion({
+            db,
+            motion: { clips: [motionClip("solo")], cues: [] },
+        });
+
+        const settings = await getWorkspaceSettingsParsed({ db });
+        expect(settings.equipmentMoves?.map((m) => m.id)).toEqual(["a"]);
+        expect(settings.cameraKeyframes?.map((k) => k.id)).toEqual(["cam"]);
+        expect(settings.motionClips?.map((c) => c.id)).toEqual(["solo"]);
+    });
+
+    it("removes the keys when every clip and cue is deleted", async ({
+        db,
+    }) => {
+        await updateWorkspaceMotion({
+            db,
+            motion: {
+                clips: [motionClip("solo")],
+                cues: [motionCue("q1", "solo")],
+            },
+        });
+        await updateWorkspaceMotion({ db, motion: { clips: [], cues: [] } });
+
+        const json = JSON.parse(await getWorkspaceSettingsJSON({ db }));
+        expect(json).not.toHaveProperty("motionClips");
+        expect(json).not.toHaveProperty("motionCues");
+    });
+
+    it("rejects malformed clips and cues", async ({ db }) => {
+        await expect(
+            updateWorkspaceMotion({
+                db,
+                motion: {
+                    clips: [{ ...motionClip("solo"), data: "not base64!" }],
+                    cues: [],
+                },
+            }),
+        ).rejects.toThrow();
+        await expect(
+            updateWorkspaceMotion({
+                db,
+                motion: {
+                    clips: [],
+                    cues: [{ ...motionCue("q1", "solo"), lengthCounts: 0 }],
+                },
+            }),
+        ).rejects.toThrow();
+    });
+});
+
 describe("parseWorkspaceSettings", () => {
+    it("drops only broken motion clips and cues", () => {
+        const settings = parseWorkspaceSettings(
+            JSON.stringify({
+                defaultTempo: 96,
+                motionClips: [motionClip("good"), { id: "bad", fps: -1 }],
+                motionCues: [
+                    motionCue("q-good", "good"),
+                    { ...motionCue("q-bad", "good"), propHand: "foot" },
+                ],
+            }),
+        );
+        expect(settings.defaultTempo).toBe(96);
+        expect(settings.motionClips?.map((c) => c.id)).toEqual(["good"]);
+        expect(settings.motionCues?.map((c) => c.id)).toEqual(["q-good"]);
+    });
+
     it("drops only broken moves and keeps the other settings", () => {
         const settings = parseWorkspaceSettings(
             JSON.stringify({

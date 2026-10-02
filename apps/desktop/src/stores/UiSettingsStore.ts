@@ -40,6 +40,8 @@ export interface View3DSettings {
     keyframePanelOpen: boolean;
     /** Whether the flag and rifle moves panel is open */
     equipmentPanelOpen: boolean;
+    /** Whether the performer motion panel is open */
+    motionPanelOpen: boolean;
 }
 
 export const defaultView3DSettings: View3DSettings = {
@@ -53,6 +55,7 @@ export const defaultView3DSettings: View3DSettings = {
     showEquipment: true,
     keyframePanelOpen: false,
     equipmentPanelOpen: false,
+    motionPanelOpen: false,
 };
 export interface UiSettings {
     lockX: boolean;

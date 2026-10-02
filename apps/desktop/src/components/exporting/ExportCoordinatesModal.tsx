@@ -83,6 +83,7 @@ import Video3DOptionsPanel, {
 } from "@/components/field3d/export/Video3DOptionsPanel";
 import { useCameraKeyframes } from "@/components/field3d/hooks/useCameraKeyframes";
 import { useEquipmentMoves } from "@/components/field3d/hooks/useEquipmentMoves";
+import { useMotion } from "@/components/field3d/hooks/useMotion";
 import Video3DPreview, {
     Video3DPreviewArgs,
 } from "@/components/field3d/export/Video3DPreview";
@@ -1354,14 +1355,20 @@ function VideoExport() {
     const [videoRenderer, setVideoRenderer] = useState<"2d" | "3d">("2d");
     const { keyframes: cameraKeyframes } = useCameraKeyframes();
     const { moves: equipmentMoves } = useEquipmentMoves();
+    const { clips: motionClips, cues: motionCues } = useMotion();
     const [chosenVideo3dOptions, setVideo3dOptions] = useState<Video3DOptions>(
         () => defaultVideo3DOptions(uiSettings.view3d, cameraKeyframes),
     );
-    // Flag and rifle moves come from the show file, so the video always uses
-    // the current ones
+    // Flag and rifle moves and performer motions come from the show file, so
+    // the video always uses the current ones
     const video3dOptions = useMemo<Video3DOptions>(
-        () => ({ ...chosenVideo3dOptions, equipmentMoves }),
-        [chosenVideo3dOptions, equipmentMoves],
+        () => ({
+            ...chosenVideo3dOptions,
+            equipmentMoves,
+            motionClips,
+            motionCues,
+        }),
+        [chosenVideo3dOptions, equipmentMoves, motionClips, motionCues],
     );
     const use3d = can3d && videoRenderer === "3d";
     const [brandingLogo, setBrandingLogo] = useState<HTMLImageElement | null>(

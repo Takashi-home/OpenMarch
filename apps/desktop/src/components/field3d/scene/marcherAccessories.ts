@@ -23,6 +23,17 @@ import {
 import { equipmentMotionMatrix } from "./equipmentMotion";
 import { findActiveMove, ResolvedEquipmentMove } from "./equipmentMoves";
 import { MARCHER_FIGURE } from "./marcherGeometry";
+import { createPerformerFigures, FIGURE_LEG_COLOR } from "./performerFigures";
+import type { DecodedMotionClip } from "../motion/motionClip";
+import {
+    ActiveMotionCue,
+    cueBlendWeight,
+    findActiveCue,
+    performerPose,
+    ResolvedMotionCue,
+} from "../motion/motionCues";
+import { propHoldMatrix } from "../motion/propFrame";
+import { POSE_SIZE } from "../motion/skeleton";
 import {
     Color3,
     MARCHER_SHAPES_3D,
@@ -64,11 +75,17 @@ export interface MarcherAccessories {
     setMarchers(marchers: readonly AccessoryMarcher[]): void;
     /** Sets the tosses, spins and sweeps the equipment performs */
     setMoves(moves: readonly ResolvedEquipmentMove[]): void;
+    /** Sets the motion clips marchers perform, and the clips by ID */
+    setMotion(
+        cues: readonly ResolvedMotionCue[],
+        clips: ReadonlyMap<string, DecodedMotionClip>,
+    ): void;
     /**
      * Moves every part to its marcher's pose and advances the walk.
      *
-     * @param showTimeMs - Show time, to pose equipment that is mid-move;
-     *   without it equipment stays in its hold
+     * @param showTimeMs - Show time, to pose equipment that is mid-move and
+     *   marchers playing a motion clip; without it everyone stands in their
+     *   usual hold
      * @returns true while legs are still swinging (keep drawing frames)
      */
     update(
@@ -80,8 +97,6 @@ export interface MarcherAccessories {
     dispose(): void;
 }
 
-const LEG_COLOR = "#2b2d38";
-
 const scratchMarcher = new Matrix4();
 const scratchPart = new Matrix4();
 const scratchPosition = new Vector3();
@@ -91,6 +106,8 @@ const scratchScale = new Vector3();
 const scratchColor = new Color();
 const scratchMotion = new Matrix4();
 const scratchEquipment = new Matrix4();
+const scratchHold = new Matrix4();
+const scratchHeld = new Matrix4();
 
 function marcherMatrix(pose: MarcherPose, scale: number): Matrix4 {
     scratchPosition.set(pose.x, 0, pose.z);
@@ -121,6 +138,7 @@ export function createMarcherAccessories({
     capacity,
     legs,
     equipment,
+    performers = false,
     castShadow,
 }: {
     /** Most marchers that can be shown */
@@ -129,9 +147,15 @@ export function createMarcherAccessories({
     legs: boolean;
     /** Draw section equipment */
     equipment: boolean;
+    /** Draw jointed figures for marchers playing a motion clip */
+    performers?: boolean;
     castShadow: boolean;
 }): MarcherAccessories {
     const object = new Group();
+    const figures = performers
+        ? createPerformerFigures({ capacity, castShadow })
+        : null;
+    if (figures) object.add(figures.object);
     const size = Math.max(capacity, 1);
     const gait = createGaitTracker();
     const owned: { dispose(): void }[] = [];
@@ -152,7 +176,9 @@ export function createMarcherAccessories({
     };
 
     const legGeometry = legs ? createLegGeometry() : null;
-    const leftLeg = legGeometry ? makeMesh(legGeometry, LEG_COLOR) : null;
+    const leftLeg = legGeometry
+        ? makeMesh(legGeometry, FIGURE_LEG_COLOR)
+        : null;
     // Both legs share one geometry; only dispose it once
     const rightLeg = legGeometry
         ? new InstancedMesh(legGeometry, leftLeg!.material, size)
@@ -177,22 +203,48 @@ export function createMarcherAccessories({
 
     let shown: readonly AccessoryMarcher[] = [];
     let moves: readonly ResolvedEquipmentMove[] = [];
+    let cues: readonly ResolvedMotionCue[] = [];
+    let clips: ReadonlyMap<string, DecodedMotionClip> = new Map();
     const legPivot = new Vector3();
+    /** The pose of the performer being drawn */
+    const pose = new Float32Array(POSE_SIZE);
 
-    /** Where the marcher's equipment is drawn: in the hold, or mid-move */
+    /** The cue the marcher is performing, with its pose put in `pose` */
+    const performing = (
+        marcher: AccessoryMarcher,
+        showTimeMs: number | undefined,
+    ): ActiveMotionCue | null => {
+        if (!figures || cues.length === 0 || showTimeMs === undefined)
+            return null;
+        const active = findActiveCue(cues, clips, marcher, showTimeMs);
+        return active && performerPose(active, clips, pose) ? active : null;
+    };
+
+    /**
+     * Where the marcher's equipment is drawn: in the hold or the performer's
+     * hands, then turned by any toss, spin or sweep
+     */
     const equipmentMatrix = (
         marcher: AccessoryMarcher,
         base: Matrix4,
         showTimeMs: number | undefined,
+        cue: ActiveMotionCue | null,
     ): Matrix4 => {
-        if (
-            !marcher.equipment ||
-            moves.length === 0 ||
-            showTimeMs === undefined
-        )
-            return base;
+        if (!marcher.equipment) return base;
+        let held = base;
+        if (cue) {
+            const hold = propHoldMatrix(
+                marcher.equipment,
+                pose,
+                cue.move.propHand,
+                cueBlendWeight(cue.progress, cue.durationSeconds),
+                scratchHold,
+            );
+            held = scratchHeld.multiplyMatrices(base, hold);
+        }
+        if (moves.length === 0 || showTimeMs === undefined) return held;
         const active = findActiveMove(moves, marcher, showTimeMs);
-        if (!active) return base;
+        if (!active) return held;
         const motion = equipmentMotionMatrix(
             marcher.equipment,
             active.move,
@@ -200,7 +252,7 @@ export function createMarcherAccessories({
             active.durationSeconds,
             scratchMotion,
         );
-        return motion ? scratchEquipment.multiplyMatrices(base, motion) : base;
+        return motion ? scratchEquipment.multiplyMatrices(held, motion) : held;
     };
 
     return {
@@ -224,27 +276,38 @@ export function createMarcherAccessories({
         setMoves(newMoves) {
             moves = newMoves;
         },
+        setMotion(newCues, newClips) {
+            cues = newCues;
+            clips = newClips;
+        },
         update(poses, deltaSeconds, scale, showTimeMs) {
             let legIndex = 0;
             const counts = equipmentMeshes.map(() => 0);
+            figures?.begin();
 
             for (const marcher of shown) {
-                const pose = poses.get(marcher.marcherId);
-                if (!pose) continue;
-                const base = marcherMatrix(pose, scale);
+                const marcherPose = poses.get(marcher.marcherId);
+                if (!marcherPose) continue;
+                const base = marcherMatrix(marcherPose, scale);
+                const cue = performing(marcher, showTimeMs);
+                if (cue) figures?.add(pose, base, marcher.color);
 
                 if (leftLeg && rightLeg) {
+                    // The walk keeps its pace under a performer; only the legs hide
                     const swing = gait.update(
                         marcher.marcherId,
-                        pose.x,
-                        pose.z,
+                        marcherPose.x,
+                        marcherPose.z,
                         deltaSeconds,
                     );
                     const { hipHeight, legOffset } = MARCHER_FIGURE;
-                    for (const [mesh, side, angle] of [
-                        [leftLeg, -1, swing],
-                        [rightLeg, 1, -swing],
-                    ] as const) {
+                    const legSwings = cue
+                        ? []
+                        : ([
+                              [leftLeg, -1, swing],
+                              [rightLeg, 1, -swing],
+                          ] as const);
+                    for (const [mesh, side, angle] of legSwings) {
                         // Forward (+Z) swing is a negative rotation about X
                         scratchPart.makeRotationX(-angle);
                         scratchPart.setPosition(
@@ -255,10 +318,10 @@ export function createMarcherAccessories({
                             scratchPart.premultiply(base),
                         );
                     }
-                    legIndex++;
+                    if (!cue) legIndex++;
                 }
 
-                const held = equipmentMatrix(marcher, base, showTimeMs);
+                const held = equipmentMatrix(marcher, base, showTimeMs, cue);
                 equipmentMeshes.forEach(({ part, mesh }, partIndex) => {
                     if (marcher.equipment !== part.kind) return;
                     mesh.setMatrixAt(counts[partIndex]++, held);
@@ -274,6 +337,7 @@ export function createMarcherAccessories({
                 mesh.count = counts[partIndex];
                 mesh.instanceMatrix.needsUpdate = true;
             });
+            figures?.end();
             return legGeometry ? !gait.isSettled() : false;
         },
         dispose() {
@@ -281,6 +345,7 @@ export function createMarcherAccessories({
             leftLeg?.dispose();
             rightLeg?.dispose();
             for (const { mesh } of equipmentMeshes) mesh.dispose();
+            figures?.dispose();
         },
     };
 }

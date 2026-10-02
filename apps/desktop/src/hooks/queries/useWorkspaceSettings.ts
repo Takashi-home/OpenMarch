@@ -9,8 +9,10 @@ import {
     getWorkspaceSettingsJSON,
     updateWorkspaceCameraKeyframes,
     updateWorkspaceEquipmentMoves,
+    updateWorkspaceMotion,
     WorkspaceCameraKeyframe,
     WorkspaceEquipmentMove,
+    WorkspaceMotion,
 } from "@/db-functions/workspaceSettings";
 import { mutationOptions, QueryClient } from "@tanstack/react-query";
 import { conToastError } from "@/utilities/utils";
@@ -111,18 +113,15 @@ export const updateWorkspaceSettingsJSONMutationOptions = (queryClient: any) =>
  * settings. The cached settings update right away so the 3D view does not lag
  * behind, and roll back if saving fails.
  */
-function showDataMutationOptions<
-    K extends "cameraKeyframes" | "equipmentMoves",
-    T,
->(
+function showDataMutationOptions<T>(
     queryClient: QueryClient,
-    key: K,
-    save: (items: T[]) => Promise<unknown>,
+    toSettings: (value: T) => Partial<z.infer<typeof workspaceSettingsSchema>>,
+    save: (value: T) => Promise<unknown>,
     errorMessage: string,
 ) {
     return mutationOptions({
-        mutationFn: async (items: T[]) => await save(items),
-        onMutate: async (items) => {
+        mutationFn: async (value: T) => await save(value),
+        onMutate: async (value) => {
             await queryClient.cancelQueries({
                 queryKey: workspaceSettingsKeys.detail(),
             });
@@ -132,11 +131,11 @@ function showDataMutationOptions<
             if (previous)
                 queryClient.setQueryData(workspaceSettingsKeys.detail(), {
                     ...previous,
-                    [key]: items,
+                    ...toSettings(value),
                 });
             return { previous };
         },
-        onError: (error, _items, context) => {
+        onError: (error, _value, context) => {
             if (context?.previous)
                 queryClient.setQueryData(
                     workspaceSettingsKeys.detail(),
@@ -158,9 +157,8 @@ export const updateCameraKeyframesMutationOptions = (
 ) =>
     showDataMutationOptions(
         queryClient,
-        "cameraKeyframes",
-        (keyframes: WorkspaceCameraKeyframe[]) =>
-            updateWorkspaceCameraKeyframes({ db, keyframes }),
+        (cameraKeyframes: WorkspaceCameraKeyframe[]) => ({ cameraKeyframes }),
+        (keyframes) => updateWorkspaceCameraKeyframes({ db, keyframes }),
         "Failed to save camera keyframes",
     );
 
@@ -168,8 +166,19 @@ export const updateCameraKeyframesMutationOptions = (
 export const updateEquipmentMovesMutationOptions = (queryClient: QueryClient) =>
     showDataMutationOptions(
         queryClient,
-        "equipmentMoves",
-        (moves: WorkspaceEquipmentMove[]) =>
-            updateWorkspaceEquipmentMoves({ db, moves }),
+        (equipmentMoves: WorkspaceEquipmentMove[]) => ({ equipmentMoves }),
+        (moves) => updateWorkspaceEquipmentMoves({ db, moves }),
         "Failed to save equipment moves",
+    );
+
+/** Mutation options for replacing the performer motions saved in the show. */
+export const updateMotionMutationOptions = (queryClient: QueryClient) =>
+    showDataMutationOptions(
+        queryClient,
+        (motion: WorkspaceMotion) => ({
+            motionClips: motion.clips,
+            motionCues: motion.cues,
+        }),
+        (motion) => updateWorkspaceMotion({ db, motion }),
+        "Failed to save performer motions",
     );

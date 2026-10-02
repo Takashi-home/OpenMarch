@@ -79,21 +79,29 @@ export function pageCountToMs(page: PageTiming, count: number): number {
     return seconds * 1000;
 }
 
-/** A move placed on the show's timeline. */
-export interface ResolvedEquipmentMove {
-    move: EquipmentMove;
+/** Something done over a span of counts in a page: a move or a motion cue. */
+export interface CountedSpan {
+    pageId: number;
+    startCount: number;
+    lengthCounts: number;
+}
+
+/** A move (or motion cue) placed on the show's timeline. */
+export interface ResolvedTimed<T> {
+    move: T;
     startMs: number;
     endMs: number;
 }
+export type ResolvedEquipmentMove = ResolvedTimed<EquipmentMove>;
 
 /**
  * Places moves on the show's timeline. Moves on pages that no longer exist, or
  * that would last no time, are left out.
  */
-export function resolveEquipmentMoves(
-    moves: readonly EquipmentMove[],
+export function resolveEquipmentMoves<T extends CountedSpan>(
+    moves: readonly T[],
     pages: readonly PageTiming[],
-): ResolvedEquipmentMove[] {
+): ResolvedTimed<T>[] {
     const pagesById = new Map(pages.map((page) => [page.id, page]));
     return moves.flatMap((move) => {
         const page = pagesById.get(move.pageId);
@@ -106,7 +114,7 @@ export function resolveEquipmentMoves(
 
 /** The show time a move is at `progress` (0–1) through, for previewing. */
 export function timeAtMoveProgress(
-    resolved: ResolvedEquipmentMove,
+    resolved: ResolvedTimed<unknown>,
     progress: number,
 ): number {
     const clamped = Math.min(Math.max(progress, 0), 1);
@@ -120,7 +128,7 @@ export interface MoveCandidate {
 }
 
 export function moveAppliesTo(
-    move: EquipmentMove,
+    move: { target: EquipmentMoveTarget },
     marcher: MoveCandidate,
 ): boolean {
     return move.target.kind === "marcher"
@@ -128,8 +136,8 @@ export function moveAppliesTo(
         : move.target.section === marcher.section;
 }
 
-export interface ActiveEquipmentMove {
-    move: EquipmentMove;
+export interface ActiveEquipmentMove<T = EquipmentMove> {
+    move: T;
     /** How far through the move, from 0 (just started) up to but not including 1 */
     progress: number;
     durationSeconds: number;
@@ -139,12 +147,12 @@ export interface ActiveEquipmentMove {
  * The move a marcher is performing at `timeMs`, if any. A move for that one
  * marcher wins over a section move; otherwise the later one in the list wins.
  */
-export function findActiveMove(
-    resolved: readonly ResolvedEquipmentMove[],
+export function findActiveMove<T extends { target: EquipmentMoveTarget }>(
+    resolved: readonly ResolvedTimed<T>[],
     marcher: MoveCandidate,
     timeMs: number,
-): ActiveEquipmentMove | null {
-    let found: ResolvedEquipmentMove | null = null;
+): ActiveEquipmentMove<T> | null {
+    let found: ResolvedTimed<T> | null = null;
     for (const candidate of resolved) {
         if (timeMs < candidate.startMs || timeMs >= candidate.endMs) continue;
         if (!moveAppliesTo(candidate.move, marcher)) continue;
@@ -164,12 +172,12 @@ export function findActiveMove(
 }
 
 /** Moves in show order: by page, then by where in the page they start. */
-export function sortEquipmentMoves(
-    moves: readonly EquipmentMove[],
+export function sortEquipmentMoves<T extends CountedSpan>(
+    moves: readonly T[],
     pages: readonly Pick<Page, "id" | "order">[],
-): EquipmentMove[] {
+): T[] {
     const orderById = new Map(pages.map((page) => [page.id, page.order]));
-    const orderOf = (move: EquipmentMove) =>
+    const orderOf = (move: T) =>
         orderById.get(move.pageId) ?? Number.MAX_SAFE_INTEGER;
     return [...moves].sort(
         (a, b) => orderOf(a) - orderOf(b) || a.startCount - b.startCount,

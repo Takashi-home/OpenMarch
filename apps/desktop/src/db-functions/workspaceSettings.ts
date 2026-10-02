@@ -5,11 +5,15 @@ import { schema } from "@/global/database/db";
 import {
     cameraKeyframeSchema,
     equipmentMoveSchema,
+    motionClipSchema,
+    motionCueSchema,
     workspaceSettingsSchema,
 } from "@/settings/workspaceSettings";
 
 export type WorkspaceCameraKeyframe = z.infer<typeof cameraKeyframeSchema>;
 export type WorkspaceEquipmentMove = z.infer<typeof equipmentMoveSchema>;
+export type WorkspaceMotionClip = z.infer<typeof motionClipSchema>;
+export type WorkspaceMotionCue = z.infer<typeof motionCueSchema>;
 
 /**
  * Lists of show data kept in the workspace settings that only their own
@@ -18,8 +22,15 @@ export type WorkspaceEquipmentMove = z.infer<typeof equipmentMoveSchema>;
 interface ShowData {
     cameraKeyframes?: WorkspaceCameraKeyframe[];
     equipmentMoves?: WorkspaceEquipmentMove[];
+    motionClips?: WorkspaceMotionClip[];
+    motionCues?: WorkspaceMotionCue[];
 }
-const SHOW_DATA_KEYS = ["cameraKeyframes", "equipmentMoves"] as const;
+const SHOW_DATA_KEYS = [
+    "cameraKeyframes",
+    "equipmentMoves",
+    "motionClips",
+    "motionCues",
+] as const;
 
 /** The show data stored in a workspace settings JSON string. */
 function storedShowData(jsonData: string | undefined): ShowData {
@@ -27,14 +38,14 @@ function storedShowData(jsonData: string | undefined): ShowData {
     try {
         // Each list is checked on its own, so an unrelated bad setting cannot lose them
         const stored = JSON.parse(jsonData) as Record<string, unknown>;
+        const { shape } = workspaceSettingsSchema;
         return {
-            cameraKeyframes:
-                workspaceSettingsSchema.shape.cameraKeyframes.parse(
-                    stored?.cameraKeyframes,
-                ),
-            equipmentMoves: workspaceSettingsSchema.shape.equipmentMoves.parse(
-                stored?.equipmentMoves,
+            cameraKeyframes: shape.cameraKeyframes.parse(
+                stored?.cameraKeyframes,
             ),
+            equipmentMoves: shape.equipmentMoves.parse(stored?.equipmentMoves),
+            motionClips: shape.motionClips.parse(stored?.motionClips),
+            motionCues: shape.motionCues.parse(stored?.motionCues),
         };
     } catch {
         return {};
@@ -85,15 +96,17 @@ export async function getWorkspaceSettings({
  * Since there's only ever one workspace settings record, this updates the record with id = 1.
  * Note: This does NOT use history tracking (no undo/redo).
  *
- * Camera keyframes and equipment moves are kept as stored unless
- * `cameraKeyframes` or `equipmentMoves` is given, so settings forms that do not
- * know about them (or hold an older copy) never drop or roll them back.
+ * Camera keyframes, equipment moves and motions are kept as stored unless
+ * new ones are given, so settings forms that do not know about them (or hold
+ * an older copy) never drop or roll them back.
  */
 export async function updateWorkspaceSettings({
     db,
     args,
     cameraKeyframes,
     equipmentMoves,
+    motionClips,
+    motionCues,
 }: {
     db: DbConnection;
     args: ModifiedWorkspaceSettingsArgs;
@@ -101,6 +114,10 @@ export async function updateWorkspaceSettings({
     cameraKeyframes?: WorkspaceCameraKeyframe[];
     /** New equipment moves; leave out to keep the stored ones */
     equipmentMoves?: WorkspaceEquipmentMove[];
+    /** New motion clips; leave out to keep the stored ones */
+    motionClips?: WorkspaceMotionClip[];
+    /** New motion cues; leave out to keep the stored ones */
+    motionCues?: WorkspaceMotionCue[];
 }): Promise<DatabaseWorkspaceSettings> {
     // Initialize the workspace settings record if it doesn't exist
     await initializeWorkspaceSettings({ db });
@@ -112,6 +129,8 @@ export async function updateWorkspaceSettings({
         const showData: ShowData = {
             cameraKeyframes: cameraKeyframes ?? stored.cameraKeyframes,
             equipmentMoves: equipmentMoves ?? stored.equipmentMoves,
+            motionClips: motionClips ?? stored.motionClips,
+            motionCues: motionCues ?? stored.motionCues,
         };
         await tx
             .update(schema.workspace_settings)
@@ -273,6 +292,37 @@ export async function updateWorkspaceEquipmentMoves({
         db,
         args: {},
         equipmentMoves: validated,
+    });
+    return validated;
+}
+
+/** Performer motion clips and the cues that play them. */
+export interface WorkspaceMotion {
+    clips: WorkspaceMotionClip[];
+    cues: WorkspaceMotionCue[];
+}
+
+/**
+ * Replaces the motion clips and cues stored in the show file together (so
+ * deleting a clip and its cues is one save), leaving the other workspace
+ * settings as they are.
+ */
+export async function updateWorkspaceMotion({
+    db,
+    motion,
+}: {
+    db: DbConnection;
+    motion: WorkspaceMotion;
+}): Promise<WorkspaceMotion> {
+    const validated = {
+        clips: z.array(motionClipSchema).parse(motion.clips),
+        cues: z.array(motionCueSchema).parse(motion.cues),
+    };
+    await updateWorkspaceSettings({
+        db,
+        args: {},
+        motionClips: validated.clips,
+        motionCues: validated.cues,
     });
     return validated;
 }
