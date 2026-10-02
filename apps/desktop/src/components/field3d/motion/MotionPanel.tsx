@@ -1,4 +1,4 @@
-import { ReactNode, useMemo, useRef, useState } from "react";
+import { lazy, ReactNode, Suspense, useMemo, useRef, useState } from "react";
 import {
     Button,
     Select,
@@ -9,6 +9,7 @@ import {
 } from "@openmarch/ui";
 import {
     EyeIcon,
+    FilmStripIcon,
     PencilSimpleIcon,
     PersonSimpleRunIcon,
     TrashIcon,
@@ -45,6 +46,9 @@ import {
 } from "./motionCueDraft";
 import MotionCueForm from "./MotionCueForm";
 import { SMOOTHING_LEVELS, MotionSmoothing } from "./normalizeMotion";
+
+// Pose detection (MediaPipe) is only loaded when a video is opened
+const VideoMotionDialog = lazy(() => import("./VideoMotionDialog"));
 
 /** A cue being previewed while paused, and how far through it the view is. */
 export interface MotionPreview {
@@ -105,6 +109,7 @@ export default function MotionPanel({
     const { clips, cues } = motion;
     const fileInput = useRef<HTMLInputElement>(null);
     const [importing, setImporting] = useState(false);
+    const [videoOpen, setVideoOpen] = useState(false);
     const [smoothing, setSmoothing] = useState<MotionSmoothing>("medium");
     const [draft, setDraft] = useState<MotionCueDraft | null>(null);
     const [editingId, setEditingId] = useState<string | null>(null);
@@ -208,25 +213,31 @@ export default function MotionPanel({
         finishEditing();
     };
 
+    /** Saves a new clip and readies the cue form to place it. */
+    const addClip = (clip: MotionClip) => {
+        onChange({ clips: [...clips, clip], cues });
+        // Ready to place the new clip, at its natural length
+        const length = selectedPage
+            ? naturalLengthCounts(clip, selectedPage, 0)
+            : Number(currentDraft.lengthCounts);
+        setDraft({
+            ...currentDraft,
+            clipId: clip.id,
+            lengthCounts: String(length),
+        });
+        toast.success(t("field3d.motion.imported", { name: clip.name }));
+    };
+
     const importFile = async (file: File) => {
         setImporting(true);
         try {
-            const clip = await importMotionFile(
-                file.name,
-                await file.arrayBuffer(),
-                smoothing,
+            addClip(
+                await importMotionFile(
+                    file.name,
+                    await file.arrayBuffer(),
+                    smoothing,
+                ),
             );
-            onChange({ clips: [...clips, clip], cues });
-            // Ready to place the new clip, at its natural length
-            const length = selectedPage
-                ? naturalLengthCounts(clip, selectedPage, 0)
-                : Number(currentDraft.lengthCounts);
-            setDraft({
-                ...currentDraft,
-                clipId: clip.id,
-                lengthCounts: String(length),
-            });
-            toast.success(t("field3d.motion.imported", { name: clip.name }));
         } catch (error) {
             console.error("Could not import motion", error);
             toast.error(
@@ -358,6 +369,25 @@ export default function MotionPanel({
                     }}
                 />
             </div>
+            <Button
+                size="compact"
+                variant="secondary"
+                disabled={clips.length >= MAX_CLIPS}
+                onClick={() => setVideoOpen(true)}
+                data-testid="motionFromVideo"
+            >
+                <FilmStripIcon size={16} />
+                <T keyName="field3d.motion.video.open" />
+            </Button>
+            {videoOpen && (
+                <Suspense fallback={null}>
+                    <VideoMotionDialog
+                        open={videoOpen}
+                        onOpenChange={setVideoOpen}
+                        onCreated={addClip}
+                    />
+                </Suspense>
+            )}
             <ul className="flex flex-col gap-4">
                 {clips.map((clip) => (
                     <li key={clip.id} className="flex items-center gap-4">

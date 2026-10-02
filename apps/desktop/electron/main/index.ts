@@ -173,8 +173,10 @@ async function createWindow(title?: string) {
             callback({
                 responseHeaders: {
                     ...details.responseHeaders,
+                    // 'wasm-unsafe-eval' lets WebAssembly compile (video pose
+                    // detection in the 3D view); JavaScript eval stays blocked
                     "Content-Security-Policy": [
-                        "script-src 'self' 'unsafe-inline' https://app.glitchtip.com https://us-assets.i.posthog.com; worker-src 'self' data: blob:;",
+                        "script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval' https://app.glitchtip.com https://us-assets.i.posthog.com; worker-src 'self' data: blob:;",
                     ],
                 },
             });

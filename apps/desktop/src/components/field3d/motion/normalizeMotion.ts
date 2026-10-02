@@ -185,23 +185,71 @@ function removeDrift(frames: Float32Array, frameCount: number, fps: number) {
     }
 }
 
-/** Lifts or lowers the capture so the feet stand on the ground (y = 0). */
+/** A knee resting on the ground (kneeling) has its center about this high */
+const KNEELING_KNEE_HEIGHT = 0.06;
+/** Smoothing of the per-frame ground height, in seconds (see below) */
+const GROUND_SIGMA_SECONDS = 0.1;
+
+/** How far the lowest point of a pose is above where it would touch the ground. */
+function lowestPoint(pose: Float32Array): number {
+    const y = (joint: number) => pose[joint * 3 + 1];
+    return Math.min(
+        y(JOINT.leftAnkle) - REST_ANKLE_HEIGHT,
+        y(JOINT.rightAnkle) - REST_ANKLE_HEIGHT,
+        y(JOINT.leftToe) - REST_TOE_HEIGHT,
+        y(JOINT.rightToe) - REST_TOE_HEIGHT,
+        y(JOINT.leftKnee) - KNEELING_KNEE_HEIGHT,
+        y(JOINT.rightKnee) - KNEELING_KNEE_HEIGHT,
+    );
+}
+
+/** Lifts or lowers the whole capture so the feet stand on the ground (y = 0). */
 function placeOnGround(frames: Float32Array, frameCount: number) {
-    const lowest = Array.from({ length: frameCount }, (_, frame) => {
-        const pose = frameView(frames, frame);
-        const y = (joint: number) => pose[joint * 3 + 1];
-        return Math.min(
-            y(JOINT.leftAnkle) - REST_ANKLE_HEIGHT,
-            y(JOINT.rightAnkle) - REST_ANKLE_HEIGHT,
-            y(JOINT.leftToe) - REST_TOE_HEIGHT,
-            y(JOINT.rightToe) - REST_TOE_HEIGHT,
-        );
-    }).sort((x, y) => x - y);
+    const lowest = Array.from({ length: frameCount }, (_, frame) =>
+        lowestPoint(frameView(frames, frame)),
+    ).sort((x, y) => x - y);
     const floor =
         lowest[
             Math.min(Math.floor(frameCount * FLOOR_PERCENTILE), frameCount - 1)
         ];
     for (let i = 1; i < frames.length; i += 3) frames[i] -= floor;
+}
+
+/**
+ * Puts every frame on the ground on its own, for captures centered on the
+ * hips (video pose estimation): they keep no height of their own, so a kneel
+ * would otherwise float. Jumps are lost; kneels and floor work stay grounded.
+ */
+function groundEachFrame(
+    frames: Float32Array,
+    frameCount: number,
+    fps: number,
+) {
+    const lowest = Float64Array.from({ length: frameCount }, (_, frame) =>
+        lowestPoint(frameView(frames, frame)),
+    );
+    const ground = smoothSeries(lowest, GROUND_SIGMA_SECONDS * fps);
+    for (let frame = 0; frame < frameCount; frame++)
+        for (let i = 1; i < POSE_SIZE; i += 3)
+            frames[frame * POSE_SIZE + i] -= ground[frame];
+}
+
+/** A series smoothed with a Gaussian of `sigmaFrames`, ends reflected. */
+function smoothSeries(values: ArrayLike<number>, sigmaFrames: number) {
+    const count = values.length;
+    if (sigmaFrames <= 0 || count < 3) return Float64Array.from(values);
+    const radius = Math.ceil(sigmaFrames * 3);
+    const weights = Array.from({ length: radius * 2 + 1 }, (_, i) =>
+        Math.exp(-((i - radius) ** 2) / (2 * sigmaFrames ** 2)),
+    );
+    const total = weights.reduce((sum, weight) => sum + weight, 0);
+    const read = (index: number) => values[index];
+    return Float64Array.from({ length: count }, (_, index) => {
+        let sum = 0;
+        for (let k = -radius; k <= radius; k++)
+            sum += reflected(read, count, index + k) * weights[k + radius];
+        return sum / total;
+    });
 }
 
 /** Smooths every coordinate over time with a Gaussian of `sigma` frames. */
@@ -211,23 +259,22 @@ export function smoothFrames(
     sigmaFrames: number,
 ): void {
     if (sigmaFrames <= 0 || frameCount < 3) return;
-    const radius = Math.ceil(sigmaFrames * 3);
-    const weights = Array.from({ length: radius * 2 + 1 }, (_, i) =>
-        Math.exp(-((i - radius) ** 2) / (2 * sigmaFrames ** 2)),
-    );
-    const total = weights.reduce((sum, weight) => sum + weight, 0);
-    const source = Float32Array.from(frames);
+    const series = new Float64Array(frameCount);
     for (let i = 0; i < POSE_SIZE; i++) {
-        const read = (frame: number) => source[frame * POSE_SIZE + i];
-        for (let frame = 0; frame < frameCount; frame++) {
-            let sum = 0;
-            for (let k = -radius; k <= radius; k++)
-                sum +=
-                    reflected(read, frameCount, frame + k) *
-                    weights[k + radius];
-            frames[frame * POSE_SIZE + i] = sum / total;
-        }
+        for (let frame = 0; frame < frameCount; frame++)
+            series[frame] = frames[frame * POSE_SIZE + i];
+        const smoothed = smoothSeries(series, sigmaFrames);
+        for (let frame = 0; frame < frameCount; frame++)
+            frames[frame * POSE_SIZE + i] = smoothed[frame];
     }
+}
+
+export interface NormalizeOptions {
+    /**
+     * The capture has no height of its own (centered on the hips, as video
+     * pose estimation gives it): ground every frame instead of the whole clip
+     */
+    hipCentered?: boolean;
 }
 
 /**
@@ -240,6 +287,7 @@ export function normalizeMotion(
     frameCount: number,
     fps: number,
     smoothing: MotionSmoothing,
+    { hipCentered = false }: NormalizeOptions = {},
 ): Float32Array {
     if (frameCount < 1 || frames.length < frameCount * POSE_SIZE)
         throw new Error("The capture has no frames");
@@ -247,7 +295,9 @@ export function normalizeMotion(
     faceForward(frames, frameCount, fps);
     scaleToFigure(frames, frameCount);
     removeDrift(frames, frameCount, fps);
-    placeOnGround(frames, frameCount);
+    // Smoothed before grounding, so the feet end up exactly on the ground
     smoothFrames(frames, frameCount, SMOOTHING_SIGMA_SECONDS[smoothing] * fps);
+    if (hipCentered) groundEachFrame(frames, frameCount, fps);
+    else placeOnGround(frames, frameCount);
     return frames;
 }

@@ -32,7 +32,11 @@ export class MotionImportError extends Error {
             | "noAnimation"
             | "missingBones"
             | "tooLong"
-            | "unreadable",
+            | "unreadable"
+            // From a video (videoPose.ts / videoCapture.ts)
+            | "noPerformer"
+            | "videoUnreadable"
+            | "modelDownload",
         readonly details: Record<string, string | number> = {},
     ) {
         super(`Motion import failed: ${reason} ${JSON.stringify(details)}`);
