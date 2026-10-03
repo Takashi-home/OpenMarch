@@ -1,8 +1,16 @@
+import type { CSSProperties } from "react";
+
 /**
- * Solid surface for controls floating over the 3D view.
+ * Light, opaque surface with dark icons and text for controls floating over
+ * the 3D view.
  *
- * The default translucent button/select background lets the bright sky and
- * field show through, so light icons and text vanish. The important modifiers
- * beat the component's own `bg-fg-2` gradient.
+ * The 3D view is always bright (sky and field), but the default button and
+ * select colors follow the app theme: in the dark theme they are translucent
+ * with light-gray icons and vanish against it. Overriding the theme variables
+ * these controls read keeps them legible in either theme.
  */
-export const OVERLAY_CONTROL_CLASS = "bg-bg-1! bg-none! text-text! shadow-md";
+export const OVERLAY_CONTROL_STYLE = {
+    "--background-image-fg-2": "linear-gradient(#ffffff, #ffffff)",
+    "--color-text": "rgb(32, 32, 32)",
+    "--color-stroke": "rgba(0, 0, 0, 0.2)",
+} as CSSProperties;

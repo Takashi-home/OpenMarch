@@ -46,7 +46,7 @@ import {
     disposeLabelSprite,
     LABEL_GAP,
 } from "../scene/labelTexture";
-import { marcherLabelText } from "../scene/marcherLabel";
+import { marcherLabelText } from "@/global/classes/Marcher";
 import { isLabelVisibleAtDistance } from "../scene/MarcherLabels";
 import { standRowBoxes } from "../scene/Stadium";
 import {

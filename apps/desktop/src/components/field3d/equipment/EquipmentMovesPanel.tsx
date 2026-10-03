@@ -8,7 +8,7 @@ import {
     XIcon,
 } from "@phosphor-icons/react";
 import { T, useTolgee } from "@tolgee/react";
-import { OVERLAY_CONTROL_CLASS } from "../overlayStyle";
+import { OVERLAY_CONTROL_STYLE } from "../overlayStyle";
 import type Marcher from "@/global/classes/Marcher";
 import type Page from "@/global/classes/Page";
 import { useUiSettingsStore } from "@/stores/UiSettingsStore";
@@ -97,7 +97,8 @@ export default function EquipmentMovesPanel({
     if (!view3d.equipmentPanelOpen)
         return (
             <Button
-                className={`absolute top-[3.25rem] right-8 z-10 ${OVERLAY_CONTROL_CLASS}`}
+                className="absolute top-[3.25rem] right-8 z-10 shadow-md"
+                style={OVERLAY_CONTROL_STYLE}
                 variant="secondary"
                 size="compact"
                 content="icon"

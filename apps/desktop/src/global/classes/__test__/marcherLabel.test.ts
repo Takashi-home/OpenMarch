@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { marcherLabelText } from "../marcherLabel";
+import { marcherLabelText } from "../Marcher";
 
 describe("marcherLabelText", () => {
     it("uses the name when the marcher has one", () => {

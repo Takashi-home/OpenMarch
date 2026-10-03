@@ -1,5 +1,5 @@
 import { fabric } from "fabric";
-import Marcher from "../Marcher";
+import Marcher, { marcherLabelText } from "../Marcher";
 import MarcherPage from "../MarcherPage";
 import { FieldProperties, RgbaColor } from "@openmarch/core";
 import { ActiveObjectArgs } from "@/components/canvas/CanvasConstants";
@@ -221,7 +221,7 @@ export default class CanvasMarcher
             equipment_state: equipmentState,
         };
 
-        this.textLabel = new fabric.Text(marcher.drill_number, {
+        this.textLabel = new fabric.Text(marcherLabelText(marcher), {
             left: coordinate.x,
             top: coordinate.y - CanvasMarcher.dotRadius * 2.2,
             originX: "center",

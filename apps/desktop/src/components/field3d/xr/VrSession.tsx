@@ -3,7 +3,7 @@ import { useThree } from "@react-three/fiber";
 import { Button } from "@openmarch/ui";
 import { VirtualRealityIcon } from "@phosphor-icons/react";
 import { useTolgee } from "@tolgee/react";
-import { OVERLAY_CONTROL_CLASS } from "../overlayStyle";
+import { OVERLAY_CONTROL_STYLE } from "../overlayStyle";
 import { toast } from "sonner";
 import type { CameraBridge } from "../camera/cameraBridge";
 import type { CameraPose } from "../camera/defaultCamera";
@@ -99,7 +99,8 @@ export function VrButton({
 
     return (
         <Button
-            className={`absolute right-8 bottom-8 z-10 ${OVERLAY_CONTROL_CLASS}`}
+            className="absolute right-8 bottom-8 z-10 shadow-md"
+            style={OVERLAY_CONTROL_STYLE}
             variant="secondary"
             size="compact"
             onClick={enter}

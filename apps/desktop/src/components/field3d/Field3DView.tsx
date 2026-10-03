@@ -61,7 +61,7 @@ import {
     buildMarcherInstances,
     MARCHER_SHAPES_3D,
 } from "./scene/marcherInstances";
-import { marcherLabelText } from "./scene/marcherLabel";
+import { marcherLabelText } from "@/global/classes/Marcher";
 import { buildPathSegments } from "./scene/pathSegments";
 import { SKY_COLOR } from "./scene/sceneStyle";
 import {

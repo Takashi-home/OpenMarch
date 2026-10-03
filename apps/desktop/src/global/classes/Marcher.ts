@@ -15,6 +15,15 @@ export const dbMarcherToMarcher = (
     };
 };
 
+/** The text a marcher is labelled with on the field: their name, or the drill number when unnamed. */
+export const marcherLabelText = (marcher: {
+    name?: string | null;
+    drill_number: string;
+}): string => {
+    const name = marcher.name?.trim();
+    return name ? name : marcher.drill_number;
+};
+
 /**
  * Compares a marcher to another marcher based on their section and drill order.
  *

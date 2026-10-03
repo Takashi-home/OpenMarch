@@ -7,7 +7,7 @@ import {
     XIcon,
 } from "@phosphor-icons/react";
 import { T, useTolgee } from "@tolgee/react";
-import { OVERLAY_CONTROL_CLASS } from "../overlayStyle";
+import { OVERLAY_CONTROL_STYLE } from "../overlayStyle";
 import { useUiSettingsStore } from "@/stores/UiSettingsStore";
 import type { CameraBridge } from "./cameraBridge";
 import {
@@ -44,7 +44,8 @@ export default function CameraKeyframesPanel({
     if (!view3d.keyframePanelOpen)
         return (
             <Button
-                className={`absolute top-8 left-8 z-10 ${OVERLAY_CONTROL_CLASS}`}
+                className="absolute top-8 left-8 z-10 shadow-md"
+                style={OVERLAY_CONTROL_STYLE}
                 variant="secondary"
                 size="compact"
                 content="icon"
