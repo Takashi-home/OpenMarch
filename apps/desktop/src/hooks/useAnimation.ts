@@ -5,7 +5,6 @@ import { playbackClock } from "@/utilities/playback/PlaybackClock";
 import { createFabricPositionSink } from "@/utilities/playback/fabricPositionSink";
 import { getEffectiveViewMode } from "@/components/field3d/viewMode";
 import { useUiSettingsStore } from "@/stores/UiSettingsStore";
-import { useFullscreenStore } from "@/stores/FullscreenStore";
 import { getLivePlaybackPosition } from "@/components/timeline/audio/AudioPlayer";
 import { useTimingObjects } from "@/hooks";
 import { useSelectedPage } from "@/context/SelectedPageContext";
@@ -167,10 +166,8 @@ export const useAnimation = ({ canvas }: UseAnimationProps) => {
         if (!canvas) return;
         // Skip redrawing the 2D canvas while the 3D view covers it
         const canvasVisible = () =>
-            getEffectiveViewMode(
-                useUiSettingsStore.getState().uiSettings,
-                useFullscreenStore.getState().isFullscreen,
-            ) !== "3d";
+            getEffectiveViewMode(useUiSettingsStore.getState().uiSettings) !==
+            "3d";
         return playbackClock.register(
             createFabricPositionSink(canvas, canvasVisible),
         );

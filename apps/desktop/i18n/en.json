@@ -241,6 +241,12 @@
         "viewDetails": "View ensemble details"
     },
     "exportCoordinates": {
+        "shareExport": "Share to phones (3D)",
+        "shareExportDone": "Saved the phone viewer file ({size} MB, {audio}). Upload it on the viewer's leader page.",
+        "shareExportFailed": "Could not save the phone viewer file: {error}",
+        "shareExportTooltip": "Save a file for the phone 3D viewer (drill-viewer): positions, colors, equipment moves, performer motions and the audio. Upload it on the viewer's leader page.",
+        "shareWithAudio": "with audio",
+        "shareWithoutAudio": "without audio",
         "abbreviateCoordinateDescriptions": "Abbreviate coordinate descriptions",
         "cancel": "Cancel",
         "cancelledByUser": "Export cancelled by user",

@@ -72,10 +72,10 @@ function App() {
     } = useUiSettingsStore();
     const pluginsLoadedRef = useRef(false);
     const { isFullscreen } = useFullscreenStore();
-    const effectiveViewMode = getEffectiveViewMode(
-        { experimental3dView, viewMode },
-        isFullscreen,
-    );
+    const effectiveViewMode = getEffectiveViewMode({
+        experimental3dView,
+        viewMode,
+    });
 
     // Check if running in codegen mode
     const isCodegen = window.electron.isCodegen;
@@ -283,15 +283,16 @@ function App() {
                                                         )}
                                                         <div className="relative flex h-full min-h-0 min-w-0 flex-1 gap-8">
                                                             {/* The 2D canvas stays mounted in 3D mode so playback and page updates keep running */}
+                                                            {/* In 3D the 2D canvas leaves the layout; with both
+                                                                "relative" and "absolute", "relative" wins and the
+                                                                hidden canvas would still take half the width */}
                                                             <div
-                                                                className={clsx(
-                                                                    "relative h-full min-w-0 flex-1",
-                                                                    {
-                                                                        "invisible absolute inset-0":
-                                                                            effectiveViewMode ===
-                                                                            "3d",
-                                                                    },
-                                                                )}
+                                                                className={
+                                                                    effectiveViewMode ===
+                                                                    "3d"
+                                                                        ? "invisible absolute inset-0"
+                                                                        : "relative h-full min-w-0 flex-1"
+                                                                }
                                                             >
                                                                 <Canvas
                                                                     onCanvasReady={

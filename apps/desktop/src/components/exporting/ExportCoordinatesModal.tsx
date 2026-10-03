@@ -84,6 +84,7 @@ import Video3DOptionsPanel, {
 import { useCameraKeyframes } from "@/components/field3d/hooks/useCameraKeyframes";
 import { useEquipmentMoves } from "@/components/field3d/hooks/useEquipmentMoves";
 import { useMotion } from "@/components/field3d/hooks/useMotion";
+import { downloadSharePackage } from "@/components/field3d/share/exportSharePackage";
 import Video3DPreview, {
     Video3DPreviewArgs,
 } from "@/components/field3d/export/Video3DPreview";
@@ -1713,6 +1714,71 @@ function VideoExport() {
         video3dOptions,
     ]);
 
+    // Packs the show for the phone 3D viewer (drill-viewer web app)
+    const [isSharing, setIsSharing] = useState(false);
+    const handleShareExport = useCallback(async () => {
+        if (!fieldProperties || !marchersLoaded) return;
+        setIsSharing(true);
+        try {
+            const timelineMaps = await Promise.all(
+                pages.map((page) =>
+                    queryClient.fetchQuery(
+                        coordinateDataQueryOptions(page, queryClient),
+                    ),
+                ),
+            );
+            const { sizeBytes, audioIncluded } = await downloadSharePackage({
+                title: workspaceSettings?.projectName || "show",
+                fieldProperties,
+                sortedPages: pages,
+                marchers,
+                marcherTimelines: combineMarcherTimelines(timelineMaps),
+                marcherAppearancesByPageId,
+                equipmentMoves,
+                motionClips,
+                motionCues,
+                gridLines: uiSettings.gridLines,
+                halfLines: uiSettings.halfLines,
+                audioOffsetSeconds: workspaceSettings?.audioOffsetSeconds ?? 0,
+            });
+            toast.success(
+                t("exportCoordinates.shareExportDone", {
+                    size: (sizeBytes / 1024 / 1024).toFixed(1),
+                    audio: audioIncluded
+                        ? t("exportCoordinates.shareWithAudio")
+                        : t("exportCoordinates.shareWithoutAudio"),
+                }),
+            );
+        } catch (error) {
+            console.error("Share export failed:", error);
+            toast.error(
+                t("exportCoordinates.shareExportFailed", {
+                    error:
+                        error instanceof Error
+                            ? error.message
+                            : "Unknown error",
+                }),
+            );
+        } finally {
+            setIsSharing(false);
+        }
+    }, [
+        t,
+        fieldProperties,
+        marchersLoaded,
+        pages,
+        queryClient,
+        workspaceSettings?.projectName,
+        workspaceSettings?.audioOffsetSeconds,
+        marchers,
+        marcherAppearancesByPageId,
+        equipmentMoves,
+        motionClips,
+        motionCues,
+        uiSettings.gridLines,
+        uiSettings.halfLines,
+    ]);
+
     return (
         <div className="flex flex-col gap-16">
             <Form.Root className="grid grid-cols-2 gap-24">
@@ -2060,6 +2126,20 @@ function VideoExport() {
 
             {/* Export Button */}
             <div className="flex w-full justify-end gap-8">
+                {can3d && (
+                    <Button
+                        size="compact"
+                        variant="secondary"
+                        tooltipText={t("exportCoordinates.shareExportTooltip")}
+                        onClick={() => void handleShareExport()}
+                        disabled={isLoading || isSharing || !canExport}
+                        data-testid="shareExportButton"
+                    >
+                        {isSharing
+                            ? t("exportCoordinates.exporting")
+                            : t("exportCoordinates.shareExport")}
+                    </Button>
+                )}
                 <Button
                     size="compact"
                     onClick={handleExport}

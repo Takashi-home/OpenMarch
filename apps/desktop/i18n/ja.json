@@ -241,6 +241,12 @@
         "viewDetails": "アンサンブルの 詳細を 表示"
     },
     "exportCoordinates": {
+        "shareExport": "スマホ共有用に書き出す（3D）",
+        "shareExportDone": "スマホ共有用ファイルを保存しました（{size} MB、{audio}）。ビューアのリーダー画面からアップロードしてください。",
+        "shareExportFailed": "スマホ共有用ファイルを保存できませんでした: {error}",
+        "shareExportTooltip": "スマホ用 3D ビューア（drill-viewer）向けのファイルを保存します。位置・色・装備の演出・演技モーション・音源を含みます。ビューアのリーダー画面からアップロードしてください。",
+        "shareWithAudio": "音源あり",
+        "shareWithoutAudio": "音源なし",
         "abbreviateCoordinateDescriptions": "座標の説明を短縮",
         "cancel": "キャンセル",
         "cancelledByUser": "ユーザー に よって エクスポート が キャンセル されました",

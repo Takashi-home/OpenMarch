@@ -16,6 +16,7 @@ import EditableAudioPlayer from "./audio/EditableAudioPlayer";
 import TimelineControls from "./TimelineControls";
 import { useFullscreenStore } from "@/stores/FullscreenStore";
 import PerspectiveSlider from "./PerspectiveSlider";
+import { getEffectiveViewMode } from "@/components/field3d/viewMode";
 import PageTimeline from "./PageTimeline";
 import { T } from "@tolgee/react";
 import clsx from "clsx";
@@ -77,7 +78,10 @@ export default function TimelineContainer() {
             {uiSettings.focussedComponent !== "timeline" && (
                 <TimelineControls />
             )}
-            {isFullscreen && <PerspectiveSlider />}
+            {/* The tilt applies to the 2D field, so only while it is shown */}
+            {isFullscreen && getEffectiveViewMode(uiSettings) !== "3d" && (
+                <PerspectiveSlider />
+            )}
             <div
                 ref={timelineRef}
                 id="timeline"

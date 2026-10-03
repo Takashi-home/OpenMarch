@@ -168,6 +168,14 @@ async function createWindow(title?: string) {
     // races where the renderer invokes auth channels before handlers exist.
     initAuthAfterReady(() => win);
 
+    // E2E and tutorial recordings: save downloads (e.g. the phone share file)
+    // without the native save dialog, which automation cannot click
+    const playwrightDownloadDir = process.env.PLAYWRIGHT_DOWNLOAD_DIR;
+    if (process.env.PLAYWRIGHT_SESSION === "true" && playwrightDownloadDir)
+        win.webContents.session.on("will-download", (_event, item) => {
+            item.setSavePath(join(playwrightDownloadDir, item.getFilename()));
+        });
+
     win.webContents.session.webRequest.onHeadersReceived(
         (details, callback) => {
             callback({

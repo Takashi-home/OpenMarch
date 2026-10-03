@@ -216,10 +216,12 @@ export default function MotionPanel({
     /** Saves a new clip and readies the cue form to place it. */
     const addClip = (clip: MotionClip) => {
         onChange({ clips: [...clips, clip], cues });
-        // Ready to place the new clip, at its natural length
-        const length = selectedPage
-            ? naturalLengthCounts(clip, selectedPage, 0)
-            : Number(currentDraft.lengthCounts);
+        // Ready to place the new clip, at its natural length. A page without
+        // counts (the first set) has no tempo to measure it with
+        const length =
+            selectedPage && selectedPage.counts > 0
+                ? naturalLengthCounts(clip, selectedPage, 0)
+                : Number(currentDraft.lengthCounts);
         setDraft({
             ...currentDraft,
             clipId: clip.id,
