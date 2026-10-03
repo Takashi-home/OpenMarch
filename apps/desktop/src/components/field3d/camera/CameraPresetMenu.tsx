@@ -9,6 +9,7 @@ import { useSelectedMarchers } from "@/context/SelectedMarchersContext";
 import { CameraPresetId, useUiSettingsStore } from "@/stores/UiSettingsStore";
 import { FIXED_CAMERA_PRESETS } from "./cameraPresets";
 import { useCameraKeyframes } from "../hooks/useCameraKeyframes";
+import { OVERLAY_CONTROL_CLASS } from "../overlayStyle";
 
 /** Presets offered in the menu, in order. "free" only appears as the current value. */
 export const MENU_CAMERA_PRESETS: readonly CameraPresetId[] = [
@@ -45,7 +46,7 @@ export default function CameraPresetMenu() {
             <Select value={current} onValueChange={choose}>
                 <SelectTriggerButton
                     label={t(cameraPresetKey(current))}
-                    className="min-w-[160px]"
+                    className={`min-w-[160px] ${OVERLAY_CONTROL_CLASS}`}
                 />
                 <SelectContent>
                     {MENU_CAMERA_PRESETS.map((preset) => (

@@ -61,6 +61,7 @@ import {
     buildMarcherInstances,
     MARCHER_SHAPES_3D,
 } from "./scene/marcherInstances";
+import { marcherLabelText } from "./scene/marcherLabel";
 import { buildPathSegments } from "./scene/pathSegments";
 import { SKY_COLOR } from "./scene/sceneStyle";
 import {
@@ -204,14 +205,14 @@ export default function Field3DView() {
 
     const labels = useMemo<MarcherLabel[]>(() => {
         if (!view3d.showLabels || !instancesByShape || !marchers) return [];
-        const drillNumbers = new Map(
-            marchers.map((marcher) => [marcher.id, marcher.drill_number]),
+        const labelTexts = new Map(
+            marchers.map((marcher) => [marcher.id, marcherLabelText(marcher)]),
         );
         return MARCHER_SHAPES_3D.flatMap((shape) => instancesByShape[shape])
             .filter((instance) => instance.labelVisible)
             .map((instance) => ({
                 marcherId: instance.marcherId,
-                text: drillNumbers.get(instance.marcherId) ?? "",
+                text: labelTexts.get(instance.marcherId) ?? "",
             }));
     }, [view3d.showLabels, instancesByShape, marchers]);
 

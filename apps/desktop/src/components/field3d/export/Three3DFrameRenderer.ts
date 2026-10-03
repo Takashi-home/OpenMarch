@@ -46,6 +46,7 @@ import {
     disposeLabelSprite,
     LABEL_GAP,
 } from "../scene/labelTexture";
+import { marcherLabelText } from "../scene/marcherLabel";
 import { isLabelVisibleAtDistance } from "../scene/MarcherLabels";
 import { standRowBoxes } from "../scene/Stadium";
 import {
@@ -302,7 +303,10 @@ export async function createThree3DFrameRenderer(
     const labels = new Map<number, Sprite>();
     if (options.showLabels) {
         for (const marcher of args.marchers) {
-            const sprite = createLabelSprite(marcher.drill_number, labelColor);
+            const sprite = createLabelSprite(
+                marcherLabelText(marcher),
+                labelColor,
+            );
             sprite.visible = false;
             labels.set(marcher.id, sprite);
             scene.add(sprite);

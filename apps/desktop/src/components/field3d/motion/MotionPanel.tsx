@@ -17,6 +17,7 @@ import {
     XIcon,
 } from "@phosphor-icons/react";
 import { T, useTolgee } from "@tolgee/react";
+import { OVERLAY_CONTROL_CLASS } from "../overlayStyle";
 import { toast } from "sonner";
 import type Marcher from "@/global/classes/Marcher";
 import type Page from "@/global/classes/Page";
@@ -127,7 +128,7 @@ export default function MotionPanel({
     if (!view3d.motionPanelOpen)
         return (
             <Button
-                className="absolute top-[3.25rem] right-[4.5rem] z-10"
+                className={`absolute top-[3.25rem] right-[4.5rem] z-10 ${OVERLAY_CONTROL_CLASS}`}
                 variant="secondary"
                 size="compact"
                 content="icon"

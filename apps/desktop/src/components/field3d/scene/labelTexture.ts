@@ -8,7 +8,11 @@ export const LABEL_GAP = 0.35;
 const TEXTURE_WIDTH = 256;
 const TEXTURE_HEIGHT = 96;
 
-/** Draws a drill number on a light pill so it reads on grass and sky alike. */
+const FONT_SIZE = 56;
+const MIN_FONT_SIZE = 24;
+const TEXT_PADDING = 24;
+
+/** Draws a label on a light pill so it reads on grass and sky alike. */
 export function createLabelTexture(
     text: string,
     textColor: string,
@@ -24,10 +28,25 @@ export function createLabelTexture(
         context.roundRect(4, 4, TEXTURE_WIDTH - 8, TEXTURE_HEIGHT - 8, radius);
         context.fill();
         context.fillStyle = textColor;
-        context.font = "bold 56px sans-serif";
+        context.font = `bold ${FONT_SIZE}px sans-serif`;
+        // Names are wider than drill numbers: shrink the font to fit the pill
+        const textWidth = context.measureText(text).width;
+        const maxWidth = TEXTURE_WIDTH - TEXT_PADDING * 2;
+        if (textWidth > maxWidth) {
+            const fitted = Math.max(
+                MIN_FONT_SIZE,
+                Math.floor((FONT_SIZE * maxWidth) / textWidth),
+            );
+            context.font = `bold ${fitted}px sans-serif`;
+        }
         context.textAlign = "center";
         context.textBaseline = "middle";
-        context.fillText(text, TEXTURE_WIDTH / 2, TEXTURE_HEIGHT / 2 + 2);
+        context.fillText(
+            text,
+            TEXTURE_WIDTH / 2,
+            TEXTURE_HEIGHT / 2 + 2,
+            maxWidth,
+        );
     }
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
